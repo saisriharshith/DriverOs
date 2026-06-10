@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useLang } from "../LanguageContext";
 import { LANGUAGE_OPTIONS } from "../translations";
 import { Truck, Shield, FileText, AlertTriangle, Globe, CheckCircle, ArrowLeft } from "lucide-react";
+import { authService } from "../api/auth.service";
 
 interface LoginPageProps {
   onLogin: () => void;
@@ -40,26 +41,32 @@ export function LoginPage({ onLogin, onBack }: LoginPageProps) {
     }
   }, [step]);
 
-  function handleSendOTP() {
+  async function handleSendOTP() {
     if (phone.length !== 10 || !/^\d+$/.test(phone)) {
       setError(t.invalidPhone);
       return;
     }
     setError("");
-    setStep("otp");
-    setTimeout(() => otpRefs.current[0]?.focus(), 100);
+    setLoading(true);
+    try {
+      await authService.sendOTP(phone);
+      setStep("otp");
+      setTimeout(() => otpRefs.current[0]?.focus(), 100);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to send OTP");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function handleOtpChange(i: number, val: string) {
+  async function handleOtpChange(i: number, val: string) {
     if (!/^\d?$/.test(val)) return;
     const next = [...otp];
     next[i] = val;
     setOtp(next);
     if (val && i < 5) otpRefs.current[i + 1]?.focus();
-    if (next.every((d) => d !== "") && next.join("") === "123456") {
-      setError("");
-      setLoading(true);
-      setTimeout(() => onLogin(), 900);
+    if (next.every((d) => d !== "")) {
+      await handleVerify(next.join(""));
     }
   }
 
@@ -69,29 +76,45 @@ export function LoginPage({ onLogin, onBack }: LoginPageProps) {
     }
   }
 
-  function handleVerify() {
-    const code = otp.join("");
-    if (code !== "123456") {
+  async function handleVerify(code?: string) {
+    const otpCode = code || otp.join("");
+    if (otpCode.length !== 6) {
       setError(t.invalidOTP);
       return;
     }
+    setError("");
     setLoading(true);
-    setTimeout(() => onLogin(), 900);
+    try {
+      await authService.verifyOTP(phone, otpCode, "DRIVER", lang.toUpperCase());
+      onLogin();
+    } catch (err: any) {
+      setError(err.response?.data?.error || t.invalidOTP);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function handleResend() {
+  async function handleResend() {
     if (!canResend) return;
     setOtp(["", "", "", "", "", ""]);
     setError("");
-    setTimer(30);
-    setCanResend(false);
-    const interval = setInterval(() => {
-      setTimer((prev) => {
-        if (prev <= 1) { clearInterval(interval); setCanResend(true); return 0; }
-        return prev - 1;
-      });
-    }, 1000);
-    setTimeout(() => otpRefs.current[0]?.focus(), 100);
+    setLoading(true);
+    try {
+      await authService.sendOTP(phone);
+      setTimer(30);
+      setCanResend(false);
+      const interval = setInterval(() => {
+        setTimer((prev) => {
+          if (prev <= 1) { clearInterval(interval); setCanResend(true); return 0; }
+          return prev - 1;
+        });
+      }, 1000);
+      setTimeout(() => otpRefs.current[0]?.focus(), 100);
+    } catch (err: any) {
+      setError("Failed to resend OTP");
+    } finally {
+      setLoading(false);
+    }
   }
 
   const brandFeatures = [

@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Heart, Phone, MapPin, AlertTriangle, User, Plus, X, Zap, Shield, Activity } from "lucide-react";
 import { useLang } from "../LanguageContext";
+import { emergencyService } from "../api/emergency.service";
+import { authService } from "../api/auth.service";
+import { driverService } from "../api/driver.service";
 
 const EMERGENCY_CONTACTS = [
   { id: 1, name: "Sunita Kumar (Wife)", phone: "+91-98210-11234", relation: "Spouse" },
@@ -14,6 +17,43 @@ export function HealthEmergency() {
   const [sosCountdown, setSosCountdown] = useState(5);
   const [sosTriggered, setSosTriggered] = useState(false);
   const [showAddContact, setShowAddContact] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [driver, setDriver] = useState<any>(null);
+  const [contactForm, setContactForm] = useState({
+    emergency_contact_name: "",
+    emergency_contact_phone: "",
+    relation: "",
+  });
+
+  useEffect(() => {
+    authService.getProfile().then(setUser).catch(console.error);
+    driverService.getProfile().then(setDriver).catch(console.error);
+  }, []);
+
+  async function triggerSOS() {
+    try {
+      // Mock location for now as per dashboard
+      await emergencyService.sendSOS(18.5204, 73.8567, "SOS");
+      setSosTriggered(true);
+    } catch (err) {
+      console.error("Failed to trigger SOS", err);
+    }
+  }
+
+  async function saveEmergencyContact() {
+    if (!contactForm.emergency_contact_name || !contactForm.emergency_contact_phone) return;
+    try {
+      const updated = await driverService.updateProfile({
+        emergency_contact_name: contactForm.emergency_contact_name,
+        emergency_contact_phone: contactForm.emergency_contact_phone,
+      });
+      setDriver(updated);
+      setContactForm({ emergency_contact_name: "", emergency_contact_phone: "", relation: "" });
+      setShowAddContact(false);
+    } catch (err) {
+      console.error("Failed to save emergency contact", err);
+    }
+  }
 
   function handleSOS() {
     setSosPressed(true);
@@ -21,7 +61,10 @@ export function HealthEmergency() {
     const timer = setInterval(() => {
       count--;
       setSosCountdown(count);
-      if (count <= 0) { clearInterval(timer); setSosTriggered(true); }
+      if (count <= 0) { 
+        clearInterval(timer); 
+        triggerSOS();
+      }
     }, 1000);
   }
 
@@ -90,18 +133,18 @@ export function HealthEmergency() {
               <Heart size={22} className="text-red-500" />
             </div>
             <div>
-              <p className="text-[#0f1c35] font-semibold">Rajesh Kumar</p>
-              <p className="text-[#4a5f7a] text-xs">DOB: 12 Mar 1982 · Age 43</p>
+              <p className="text-[#0f1c35] font-semibold">{user?.name || "Driver"}</p>
+              <p className="text-[#4a5f7a] text-xs">Phone: {user?.phone}</p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: t.bloodGroup, value: "B+", highlight: true },
-              { label: "Height / Weight", value: "5'9\" / 78 kg" },
-              { label: "Conditions", value: "Hypertension" },
-              { label: "Medications", value: "Amlodipine 5mg" },
-              { label: "Allergies", value: "None known" },
-              { label: "Doctor", value: "Dr. Mehta, Pune" },
+              { label: t.bloodGroup, value: driver?.blood_group || "Not added", highlight: true },
+              { label: "Height / Weight", value: `${driver?.height_cm || "N/A"} cm / ${driver?.weight_kg || "N/A"} kg` },
+              { label: "Conditions", value: driver?.medical_conditions || "Not added" },
+              { label: "Medications", value: driver?.medications || "Not added" },
+              { label: "Allergies", value: driver?.allergies || "Not added" },
+              { label: "Doctor", value: driver?.doctor_name || "Not added" },
             ].map(({ label, value, highlight }) => (
               <div key={label} className={`rounded-xl p-3 ${highlight ? "bg-red-50 border border-red-200" : "bg-[#f0f4f8]"}`}>
                 <p className="text-[#4a5f7a] text-xs">{label}</p>
@@ -121,7 +164,15 @@ export function HealthEmergency() {
           </button>
         </div>
         <div className="flex flex-col gap-2">
-          {EMERGENCY_CONTACTS.map(contact => (
+          {[
+            ...(driver?.emergency_contact_name ? [{
+              id: "saved",
+              name: driver.emergency_contact_name,
+              phone: driver.emergency_contact_phone,
+              relation: "Emergency Contact",
+            }] : []),
+            ...EMERGENCY_CONTACTS,
+          ].map(contact => (
             <div key={contact.id} className="bg-white rounded-2xl p-4 flex items-center gap-3">
               <div className="w-10 h-10 bg-[#1a4999] rounded-xl flex items-center justify-center shrink-0">
                 <User size={18} className="text-white" />
@@ -167,14 +218,27 @@ export function HealthEmergency() {
               <button onClick={() => setShowAddContact(false)}><X size={22} className="text-[#4a5f7a]" /></button>
             </div>
             <div className="flex flex-col gap-3 mb-4">
-              {[t.fullName, t.phoneNumber, t.relation].map(field => (
-                <div key={field} className="bg-[#f0f4f8] rounded-xl px-4 py-3">
-                  <p className="text-[#4a5f7a] text-xs mb-1">{field}</p>
-                  <input className="w-full bg-transparent text-[#0f1c35] text-sm outline-none" placeholder={field} />
+              {[
+                { key: "emergency_contact_name", label: t.fullName },
+                { key: "emergency_contact_phone", label: t.phoneNumber },
+                { key: "relation", label: t.relation },
+              ].map(field => (
+                <div key={field.key} className="bg-[#f0f4f8] rounded-xl px-4 py-3">
+                  <p className="text-[#4a5f7a] text-xs mb-1">{field.label}</p>
+                  <input
+                    className="w-full bg-transparent text-[#0f1c35] text-sm outline-none"
+                    placeholder={field.label}
+                    value={(contactForm as any)[field.key]}
+                    onChange={e => setContactForm(prev => ({ ...prev, [field.key]: e.target.value }))}
+                  />
                 </div>
               ))}
             </div>
-            <button onClick={() => setShowAddContact(false)} className="w-full bg-[#1a4999] text-white rounded-2xl py-4 font-semibold">
+            <button
+              onClick={saveEmergencyContact}
+              disabled={!contactForm.emergency_contact_name || !contactForm.emergency_contact_phone}
+              className="w-full bg-[#1a4999] text-white rounded-2xl py-4 font-semibold disabled:opacity-50"
+            >
               {t.saveContact}
             </button>
           </div>

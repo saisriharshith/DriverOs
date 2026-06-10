@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   AlertTriangle, CheckCircle, Clock, Truck, MapPin,
   Fuel, Coffee, Wrench, Phone, Upload, Navigation,
@@ -7,6 +7,19 @@ import {
 } from "lucide-react";
 import { useLang } from "../LanguageContext";
 import { LANGUAGE_OPTIONS, LangCode } from "../translations";
+import { analyticsService } from "../api/analytics.service";
+import { authService } from "../api/auth.service";
+
+interface DashboardStats {
+  total_expenses: number;
+  total_trips: number;
+  active_trips: number;
+  compliance_score: number;
+  risk_level: string;
+  total_documents: number;
+  expired_documents: number;
+  total_vehicles: number;
+}
 
 interface AlertItem {
   labelKey: string;
@@ -19,9 +32,6 @@ const ALERTS: AlertItem[] = [
   { labelKey: "Driving License", expiry: "15 Aug 2025", daysLeft: 68, status: "warning" },
   { labelKey: "Vehicle Insurance", expiry: "30 Jun 2025", daysLeft: 22, status: "danger" },
   { labelKey: "PUC Certificate", expiry: "10 Jul 2025", daysLeft: 32, status: "warning" },
-  { labelKey: "Fitness Certificate", expiry: "12 Oct 2025", daysLeft: 126, status: "safe" },
-  { labelKey: "National Permit", expiry: "01 Dec 2025", daysLeft: 176, status: "safe" },
-  { labelKey: "Next Service Due", expiry: "15 Jul 2025", daysLeft: 37, status: "warning" },
 ];
 
 const GOV_UPDATES = [
@@ -35,9 +45,30 @@ export function Dashboard({ onNavigate }: { onNavigate: (screen: string) => void
   const { lang, setLang, t } = useLang();
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [sosActive, setSosActive] = useState(false);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const dangerCount = ALERTS.filter(a => a.status === "danger").length;
-  const warnCount = ALERTS.filter(a => a.status === "warning").length;
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const [statsData, profileData] = await Promise.all([
+          analyticsService.getDashboardStats(),
+          authService.getProfile()
+        ]);
+        setStats(statsData);
+        setUser(profileData);
+      } catch (err) {
+        console.error("Failed to fetch dashboard data", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  const dangerCount = stats?.expired_documents || 0;
+  const warnCount = 0; // Backend could be improved to return warning count
 
   const QUICK_ACTIONS = [
     { label: t.uploadDoc, icon: Upload, color: "bg-blue-600", action: "upload" },
@@ -78,10 +109,10 @@ export function Dashboard({ onNavigate }: { onNavigate: (screen: string) => void
             </div>
             <div>
               <p className="text-white/70 text-xs uppercase tracking-wider">{t.welcomeBack}</p>
-              <h2 className="text-white text-lg leading-tight">Rajesh Kumar</h2>
+              <h2 className="text-white text-lg leading-tight">{user?.name || "Driver"}</h2>
               <div className="flex items-center gap-1 mt-0.5">
                 <Truck size={12} className="text-orange-300" />
-                <span className="text-orange-300 text-xs">MH-04-AB-1234</span>
+                <span className="text-orange-300 text-xs">{user?.phone}</span>
               </div>
             </div>
           </div>
@@ -129,7 +160,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (screen: string) => void
             <div className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse" />
             <div>
               <p className="text-white text-xs opacity-70">{t.currentTrip}</p>
-              <p className="text-white text-sm">Mumbai → Pune (92 km left)</p>
+              <p className="text-white text-sm">{stats?.active_trips ? "Active Trip in Progress" : "No Active Trip"}</p>
             </div>
           </div>
           <div className="flex items-center gap-1 text-orange-300 text-xs">
@@ -140,7 +171,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (screen: string) => void
       </div>
 
       {/* Alert Strip */}
-      {(dangerCount > 0 || warnCount > 0) && (
+      {dangerCount > 0 && (
         <div className="mx-4 mt-4 bg-red-50 border border-red-200 rounded-2xl p-3 flex items-center gap-3">
           <AlertTriangle size={20} className="text-red-600 shrink-0" />
           <p className="text-red-700 text-sm flex-1">
@@ -149,6 +180,26 @@ export function Dashboard({ onNavigate }: { onNavigate: (screen: string) => void
           <button onClick={() => onNavigate("compliance")} className="text-red-600 text-xs font-semibold">{t.viewAll} →</button>
         </div>
       )}
+
+      {/* Compliance Card */}
+      <div className="px-4 mt-4">
+        <div className="bg-white rounded-3xl p-5 shadow-sm border border-blue-50 flex items-center gap-4">
+          <div className="relative w-16 h-16 flex items-center justify-center">
+            <svg className="w-full h-full -rotate-90">
+              <circle cx="32" cy="32" r="28" fill="transparent" stroke="#f0f4f8" strokeWidth="6" />
+              <circle cx="32" cy="32" r="28" fill="transparent" stroke={stats?.compliance_score && stats.compliance_score > 80 ? "#22c55e" : "#f59e0b"} strokeWidth="6" strokeDasharray={176} strokeDashoffset={176 - (176 * (stats?.compliance_score || 100)) / 100} strokeLinecap="round" />
+            </svg>
+            <span className="absolute text-lg font-bold text-[#1a4999]">{stats?.compliance_score || 100}%</span>
+          </div>
+          <div className="flex-1">
+            <h4 className="text-[#0f1c35] font-semibold text-sm">Compliance Score</h4>
+            <p className="text-[#4a5f7a] text-xs">Overall risk: <span className={stats?.risk_level === "SAFE" ? "text-green-600 font-bold" : "text-amber-600 font-bold"}>{stats?.risk_level || "SAFE"}</span></p>
+          </div>
+          <button onClick={() => onNavigate("compliance")} className="w-10 h-10 bg-[#f0f4f8] rounded-xl flex items-center justify-center text-[#1a4999]">
+            <ChevronRight size={20} />
+          </button>
+        </div>
+      </div>
 
       {/* Document Status */}
       <div className="px-4 mt-4">
@@ -159,22 +210,28 @@ export function Dashboard({ onNavigate }: { onNavigate: (screen: string) => void
           </button>
         </div>
         <div className="grid grid-cols-1 gap-2">
-          {ALERTS.map((alert) => (
-            <div key={alert.labelKey} className={`bg-white rounded-2xl px-4 py-3 flex items-center justify-between border-l-4 ${
-              alert.status === "danger" ? "border-red-500" : alert.status === "warning" ? "border-amber-500" : "border-green-500"
-            }`}>
-              <div>
-                <p className="text-[#0f1c35] text-sm font-semibold">{alert.labelKey}</p>
-                <p className="text-[#4a5f7a] text-xs mt-0.5">{t.expires}: {alert.expiry}</p>
-              </div>
-              <div className="text-right">
-                <StatusBadge status={alert.status} />
-                <p className={`text-xs mt-1 ${alert.status === "danger" ? "text-red-600" : alert.status === "warning" ? "text-amber-600" : "text-green-600"}`}>
-                  {alert.daysLeft} {t.daysLeft}
-                </p>
-              </div>
-            </div>
-          ))}
+          {stats?.expired_documents ? (
+             <div className="bg-white rounded-2xl px-4 py-3 flex items-center justify-between border-l-4 border-red-500">
+               <div>
+                 <p className="text-[#0f1c35] text-sm font-semibold">Expired Documents</p>
+                 <p className="text-[#4a5f7a] text-xs mt-0.5">Please check and update</p>
+               </div>
+               <div className="text-right">
+                 <StatusBadge status="danger" />
+                 <p className="text-xs mt-1 text-red-600">{stats.expired_documents} Documents</p>
+               </div>
+             </div>
+          ) : (
+            <div className="bg-white rounded-2xl px-4 py-3 flex items-center justify-between border-l-4 border-green-500">
+               <div>
+                 <p className="text-[#0f1c35] text-sm font-semibold">All Documents Valid</p>
+                 <p className="text-[#4a5f7a] text-xs mt-0.5">Good to go!</p>
+               </div>
+               <div className="text-right">
+                 <StatusBadge status="safe" />
+               </div>
+             </div>
+          )}
         </div>
       </div>
 

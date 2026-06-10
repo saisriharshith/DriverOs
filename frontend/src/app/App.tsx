@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard, FolderLock, ShieldCheck, Navigation,
   Truck, Fuel, Heart, FileText, Bot, Menu, X,
@@ -19,6 +19,7 @@ import { HealthEmergency } from "./components/HealthEmergency";
 import { PolicyUpdates } from "./components/PolicyUpdates";
 import { AIAssistant } from "./components/AIAssistant";
 import { FinanceTracker } from "./components/FinanceTracker";
+import { authService } from "./api/auth.service";
 
 type Screen =
   | "dashboard" | "documents" | "compliance" | "trips"
@@ -31,6 +32,41 @@ function AppShell() {
   const [stage, setStage] = useState<AppStage>("landing");
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [userData, setUserData] = useState<any>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      setStage("app");
+      authService.getProfile().then(setUserData).catch(() => {
+        authService.logout();
+        setStage("landing");
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (stage !== "app") return;
+
+    const trackLocation = () => {
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            locationService.updateLocation(
+              position.coords.latitude,
+              position.coords.longitude
+            ).catch(err => console.error("Location tracking error", err));
+          },
+          (error) => console.warn("Geolocation error", error),
+          { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
+        );
+      }
+    };
+
+    trackLocation();
+    const interval = setInterval(trackLocation, 60000);
+    return () => clearInterval(interval);
+  }, [stage]);
 
   const BOTTOM_NAV = [
     { key: "dashboard" as Screen, label: t.home, icon: LayoutDashboard },
@@ -58,6 +94,13 @@ function AppShell() {
     setMenuOpen(false);
   }
 
+  function handleLogout() {
+    authService.logout();
+    setStage("landing");
+    setScreen("dashboard");
+    setUserData(null);
+  }
+
   if (stage === "landing") {
     return <LandingPage onGetStarted={() => setStage("login")} />;
   }
@@ -65,7 +108,10 @@ function AppShell() {
   if (stage === "login") {
     return (
       <LoginPage
-        onLogin={() => setStage("app")}
+        onLogin={() => {
+          setStage("app");
+          authService.getProfile().then(setUserData);
+        }}
         onBack={() => setStage("landing")}
       />
     );
@@ -93,8 +139,8 @@ function AppShell() {
               <User size={18} className="text-white" />
             </div>
             <div>
-              <p className="text-white text-sm" style={{ fontWeight: 600 }}>Rajesh Kumar</p>
-              <p className="text-orange-300 text-xs">MH-04-AB-1234</p>
+              <p className="text-white text-sm" style={{ fontWeight: 600 }}>{userData?.name || "Driver"}</p>
+              <p className="text-orange-300 text-xs">{userData?.phone}</p>
             </div>
           </div>
         </div>
@@ -130,7 +176,7 @@ function AppShell() {
             <Zap size={16} />{t.emergencySOS}
           </button>
           <button
-            onClick={() => { setStage("landing"); setScreen("dashboard"); }}
+            onClick={handleLogout}
             className="w-full text-red-500 hover:bg-red-50 rounded-xl py-2 flex items-center justify-center gap-2 text-sm transition-colors"
           >
             <LogOut size={15} />{t.logout}
@@ -206,8 +252,8 @@ function AppShell() {
                   <User size={22} className="text-white" />
                 </div>
                 <div>
-                  <p className="text-white text-sm" style={{ fontWeight: 600 }}>Rajesh Kumar</p>
-                  <p className="text-orange-300 text-xs">MH-04-AB-1234</p>
+                  <p className="text-white text-sm" style={{ fontWeight: 600 }}>{userData?.name || "Driver"}</p>
+                  <p className="text-orange-300 text-xs">{userData?.phone}</p>
                   <p className="text-white/60 text-xs">{selectedLang?.flag} {selectedLang?.native}</p>
                 </div>
               </div>
@@ -242,7 +288,7 @@ function AppShell() {
                 <Zap size={20} />{t.emergencySOS}
               </button>
               <button
-                onClick={() => { setMenuOpen(false); setStage("landing"); setScreen("dashboard"); }}
+                onClick={handleLogout}
                 className="w-full bg-[#f0f4f8] text-red-600 rounded-2xl py-3 flex items-center justify-center gap-2 text-sm"
                 style={{ fontWeight: 600 }}
               >

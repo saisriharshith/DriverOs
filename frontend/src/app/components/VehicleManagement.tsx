@@ -1,6 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Truck, Wrench, Fuel, AlertTriangle, CheckCircle, Clock, Plus, ChevronRight, X, CircleGauge } from "lucide-react";
 import { useLang } from "../LanguageContext";
+import { vehicleService } from "../api/vehicle.service";
+
+interface Vehicle {
+  id: number;
+  vehicle_number: string;
+  vehicle_type: string;
+  insurance_expiry: string;
+  permit_expiry: string;
+  puc_expiry: string;
+}
 
 const SERVICE_HISTORY = [
   { id: 1, date: "15 Mar 2025", type: "Regular Service", odometer: "1,24,500 km", cost: 8500, workshop: "Tata Motors Service, Pune", notes: "Oil change, filter replaced" },
@@ -20,7 +30,60 @@ const VEHICLE_HEALTH = [
 export function VehicleManagement() {
   const { t } = useLang();
   const [showAddService, setShowAddService] = useState(false);
+  const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [selectedService, setSelectedService] = useState<typeof SERVICE_HISTORY[0] | null>(null);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [vehicleForm, setVehicleForm] = useState({
+    vehicle_number: "",
+    vehicle_type: "Truck",
+    insurance_expiry: "",
+    permit_expiry: "",
+    puc_expiry: "",
+  });
+
+  useEffect(() => {
+    fetchVehicles();
+  }, []);
+
+  async function fetchVehicles() {
+    try {
+      const data = await vehicleService.getVehicles();
+      setVehicles(data);
+    } catch (err) {
+      console.error("Failed to fetch vehicles", err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleAddVehicle() {
+    if (!vehicleForm.vehicle_number || !vehicleForm.vehicle_type) return;
+    try {
+      setLoading(true);
+      await vehicleService.addVehicle({
+        ...vehicleForm,
+        insurance_expiry: vehicleForm.insurance_expiry || null,
+        permit_expiry: vehicleForm.permit_expiry || null,
+        puc_expiry: vehicleForm.puc_expiry || null,
+      });
+      await fetchVehicles();
+      setVehicleForm({
+        vehicle_number: "",
+        vehicle_type: "Truck",
+        insurance_expiry: "",
+        permit_expiry: "",
+        puc_expiry: "",
+      });
+      setShowAddVehicle(false);
+    } catch (err) {
+      console.error("Failed to add vehicle", err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const primaryVehicle = vehicles[0];
 
   const overallScore = Math.round(VEHICLE_HEALTH.reduce((a, h) => a + h.score, 0) / VEHICLE_HEALTH.length);
 
@@ -34,30 +97,51 @@ export function VehicleManagement() {
       {/* Truck Profile */}
       <div className="px-4 mt-4">
         <div className="bg-white rounded-3xl p-5">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-16 h-16 bg-[#1a4999] rounded-2xl flex items-center justify-center">
-              <Truck size={32} className="text-white" />
-            </div>
-            <div>
-              <h2 className="text-[#0f1c35] font-semibold text-lg">Tata Prima 4928.S</h2>
-              <p className="text-orange-500 font-semibold">MH-04-AB-1234</p>
-              <p className="text-[#4a5f7a] text-xs mt-0.5">Heavy Commercial Vehicle · 2019</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { label: t.odometer.split(" ")[0], value: "1,26,842 km" },
-              { label: "Engine", value: "380 HP" },
-              { label: "GVW", value: "49,000 kg" },
-            ].map(({ label, value }) => (
-              <div key={label} className="bg-[#f0f4f8] rounded-xl p-2.5 text-center">
-                <p className="text-[#0f1c35] text-sm font-semibold">{value}</p>
-                <p className="text-[#4a5f7a] text-xs">{label}</p>
+          {loading ? (
+             <p className="text-center text-gray-500 py-10">Loading vehicle info...</p>
+          ) : primaryVehicle ? (
+            <>
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-16 h-16 bg-[#1a4999] rounded-2xl flex items-center justify-center">
+                  <Truck size={32} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="text-[#0f1c35] font-semibold text-lg">{primaryVehicle.vehicle_type}</h2>
+                  <p className="text-orange-500 font-semibold">{primaryVehicle.vehicle_number}</p>
+                  <p className="text-[#4a5f7a] text-xs mt-0.5">Insurance Expiry: {primaryVehicle.insurance_expiry}</p>
+                </div>
               </div>
-            ))}
-          </div>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: "Permit", value: primaryVehicle.permit_expiry || "N/A" },
+                  { label: "PUC", value: primaryVehicle.puc_expiry || "N/A" },
+                  { label: "Type", value: primaryVehicle.vehicle_type },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-[#f0f4f8] rounded-xl p-2.5 text-center">
+                    <p className="text-[#0f1c35] text-[10px] font-semibold truncate">{value}</p>
+                    <p className="text-[#4a5f7a] text-[10px]">{label}</p>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-gray-500 mb-4">No vehicles registered</p>
+              <button onClick={() => setShowAddVehicle(true)} className="bg-[#1a4999] text-white rounded-xl px-4 py-2.5 text-sm font-semibold inline-flex items-center gap-2">
+                <Plus size={16} /> Add Vehicle
+              </button>
+            </div>
+          )}
         </div>
       </div>
+
+      {primaryVehicle && (
+        <div className="px-4 mt-3">
+          <button onClick={() => setShowAddVehicle(true)} className="w-full bg-[#1a4999] text-white rounded-2xl py-3 flex items-center justify-center gap-2 font-semibold">
+            <Plus size={18} /> Add Another Vehicle
+          </button>
+        </div>
+      )}
 
       {/* Vehicle Health */}
       <div className="px-4 mt-4">
@@ -200,6 +284,41 @@ export function VehicleManagement() {
             </div>
             <button onClick={() => setShowAddService(false)} className="w-full bg-[#1a4999] text-white rounded-2xl py-4 font-semibold">
               {t.saveRecord}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Add Vehicle Modal */}
+      {showAddVehicle && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end">
+          <div className="bg-white w-full rounded-t-3xl p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-[#0f1c35] text-lg font-semibold">Add Vehicle</h3>
+              <button onClick={() => setShowAddVehicle(false)}><X size={22} className="text-[#4a5f7a]" /></button>
+            </div>
+            <div className="flex flex-col gap-3 mb-4">
+              {[
+                { key: "vehicle_number", label: "Vehicle Number", type: "text" },
+                { key: "vehicle_type", label: "Vehicle Type", type: "text" },
+                { key: "insurance_expiry", label: "Insurance Expiry", type: "date" },
+                { key: "permit_expiry", label: "Permit Expiry", type: "date" },
+                { key: "puc_expiry", label: "PUC Expiry", type: "date" },
+              ].map(field => (
+                <div key={field.key} className="bg-[#f0f4f8] rounded-xl px-4 py-3">
+                  <p className="text-[#4a5f7a] text-xs mb-1">{field.label}</p>
+                  <input
+                    className="w-full bg-transparent text-[#0f1c35] text-sm outline-none"
+                    placeholder={field.label}
+                    type={field.type}
+                    value={(vehicleForm as any)[field.key]}
+                    onChange={e => setVehicleForm(prev => ({ ...prev, [field.key]: e.target.value }))}
+                  />
+                </div>
+              ))}
+            </div>
+            <button onClick={handleAddVehicle} disabled={!vehicleForm.vehicle_number || !vehicleForm.vehicle_type} className="w-full bg-[#1a4999] text-white rounded-2xl py-4 font-semibold disabled:opacity-50">
+              Save Vehicle
             </button>
           </div>
         </div>

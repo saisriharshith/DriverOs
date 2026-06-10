@@ -1,20 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AlertTriangle, CheckCircle, Clock, ChevronRight, Shield, RefreshCw, Info } from "lucide-react";
 import { useLang } from "../LanguageContext";
+import { documentService } from "../api/document.service";
+import { analyticsService } from "../api/analytics.service";
 
 interface ComplianceItem {
-  id: string; name: string; expiry: string; daysLeft: number;
-  status: "safe" | "warning" | "danger" | "expired"; category: string; action: string;
+  id: string | number; name: string; expiry: string; daysLeft: number;
+  status: "safe" | "warning" | "danger" | "expired" | "pending"; category: string; action: string;
 }
-
-const ITEMS: ComplianceItem[] = [
-  { id: "dl", name: "Driving License (HMV)", expiry: "15 Aug 2025", daysLeft: 68, status: "warning", category: "Driver", action: "Renew at RTO" },
-  { id: "ins", name: "Vehicle Insurance", expiry: "30 Jun 2025", daysLeft: 22, status: "expired", category: "Vehicle", action: "Contact insurance agent immediately" },
-  { id: "puc", name: "PUC Certificate", expiry: "10 Jul 2025", daysLeft: 32, status: "warning", category: "Vehicle", action: "Visit authorized PUC center" },
-  { id: "fit", name: "Fitness Certificate", expiry: "12 Oct 2025", daysLeft: 126, status: "safe", category: "Vehicle", action: "Valid" },
-  { id: "per", name: "National Permit", expiry: "01 Dec 2025", daysLeft: 176, status: "safe", category: "Vehicle", action: "Valid" },
-  { id: "tax", name: "Road Tax", expiry: "31 Mar 2026", daysLeft: 296, status: "safe", category: "Vehicle", action: "Valid" },
-];
 
 function ScoreRing({ score }: { score: number }) {
   const r = 52; const circ = 2 * Math.PI * r;
@@ -33,16 +26,61 @@ function ScoreRing({ score }: { score: number }) {
 
 export function ComplianceCenter() {
   const { t } = useLang();
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | number | null>(null);
+  const [items, setItems] = useState<ComplianceItem[]>([]);
+  const [score, setScore] = useState(100);
+  const [loading, setLoading] = useState(true);
 
-  const score = Math.min(100, Math.round((ITEMS.reduce((a, i) => a + (i.status === "safe" ? 20 : i.status === "warning" ? 10 : 0), 0) / (ITEMS.length * 20)) * 100));
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const [docs, stats] = await Promise.all([
+          documentService.getDocuments(),
+          analyticsService.getDashboardStats()
+        ]);
+
+        const mapped = docs.map((doc: any) => {
+          const expiryDate = doc.expiry_date ? new Date(doc.expiry_date) : null;
+          const today = new Date();
+          const diffTime = expiryDate ? expiryDate.getTime() - today.getTime() : 0;
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          
+          let status: ComplianceItem["status"] = "safe";
+          if (doc.status === "EXPIRED") status = "expired";
+          else if (doc.status === "PENDING") status = "pending";
+          else if (expiryDate && diffDays < 30) status = "warning";
+
+          return {
+            id: doc.id,
+            name: doc.doc_type,
+            expiry: doc.expiry_date || "N/A",
+            daysLeft: diffDays > 0 ? diffDays : 0,
+            status: status,
+            category: doc.vehicle ? "Vehicle" : "Driver",
+            action: status === "safe" ? "Valid" : "Renew/Update Document"
+          };
+        });
+
+        setItems(mapped);
+        setScore(stats.compliance_score || 100);
+      } catch (err) {
+        console.error("Failed to fetch compliance data", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
   const riskLevel = score >= 75 ? t.safeToOperate : score >= 50 ? t.cautionNeeded : t.highRisk;
   const riskColor = score >= 75 ? "text-green-600" : score >= 50 ? "text-amber-600" : "text-red-600";
   const riskBg = score >= 75 ? "bg-green-50 border-green-200" : score >= 50 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200";
 
-  const dangerItems = ITEMS.filter(i => i.status === "danger" || i.status === "expired");
-  const warnItems = ITEMS.filter(i => i.status === "warning");
-  const safeItems = ITEMS.filter(i => i.status === "safe");
+  const dangerItems = items.filter(i => i.status === "danger" || i.status === "expired");
+  const warnItems = items.filter(i => i.status === "warning");
+  const safeItems = items.filter(i => i.status === "safe" || i.status === "pending");
+
+  if (loading) return <p className="text-center text-gray-500 py-10">Loading compliance status...</p>;
 
   return (
     <div className="min-h-screen bg-[#f0f4f8] pb-24">
@@ -115,13 +153,14 @@ function ComplianceCard({ item, t, expanded, onToggle }: { item: ComplianceItem;
           {item.status === "expired" && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">{t.expired}</span>}
           {item.status === "warning" && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">{item.daysLeft}d</span>}
           {item.status === "safe" && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">✓ {t.valid}</span>}
+          {item.status === "pending" && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">Pending</span>}
           <ChevronRight size={14} className={`text-[#4a5f7a] transition-transform ${expanded ? "rotate-90" : ""}`} />
         </div>
       </button>
       {expanded && (
         <div className="px-4 pb-4 border-t border-[#dce6f0] pt-3">
           <p className="text-[#4a5f7a] text-sm mb-3"><span className="font-semibold">{t.requiredAction}:</span> {item.action}</p>
-          {item.status !== "safe" && (
+          {item.status !== "safe" && item.status !== "pending" && (
             <button className="w-full bg-[#1a4999] text-white rounded-xl py-2.5 flex items-center justify-center gap-2 text-sm font-semibold">
               <RefreshCw size={16} /> {t.renewNow}
             </button>

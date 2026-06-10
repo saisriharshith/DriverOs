@@ -890,7 +890,6 @@ const translations: Record<LangCode, Translation> = {
     typeIncome: "ఆదాయం",
     categoryLabel: "వర్గం",
     noteParsed: "నోట్",
-    financeTracker: "ఆర్థిక నిర్వహణ",
     
   },
 

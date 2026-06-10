@@ -1,9 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Fuel, Utensils, Wrench, ShieldCheck, IndianRupee, Plus,
   TrendingDown, TrendingUp, Trash2,
-  Wallet, ReceiptText, ChartPie, CheckCircle, Mic
+  Wallet, ReceiptText, ChartPie, CheckCircle, Mic, Truck
 } from "lucide-react";
 import { useLang } from "../LanguageContext";
 import {
@@ -11,16 +11,18 @@ import {
   PieChart, Pie, Cell
 } from "recharts";
 import { FinanceVoiceEntry, type ParsedFinanceEntry } from "./FinanceVoiceEntry";
+import { expenseService } from "../api/expense.service";
+import { vehicleService } from "../api/vehicle.service";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-type CategoryKey = "fuel" | "food" | "toll" | "maintenance" | "insurance" | "loading" | "other";
+type CategoryKey = "fuel" | "food" | "toll" | "maintenance" | "insurance" | "loading" | "other" | "PARKING" | "REPAIR";
 type EntryType = "expense" | "income";
 
 interface Entry {
-  id: string;
+  id: string | number;
   type: EntryType;
-  category: CategoryKey;
+  category: string;
   amount: number;
   note: string;
   date: string; // "YYYY-MM-DD"
@@ -29,51 +31,39 @@ interface Entry {
 
 // ── Constants (labels resolved inside component via t) ─────────────────────
 
-const CATEGORY_ICONS: Record<CategoryKey, React.ReactNode> = {
+const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   fuel:        <Fuel size={16} />,
+  FUEL:        <Fuel size={16} />,
   food:        <Utensils size={16} />,
   toll:        <IndianRupee size={16} />,
+  TOLL:        <IndianRupee size={16} />,
   maintenance: <Wrench size={16} />,
+  REPAIR:      <Wrench size={16} />,
   insurance:   <ShieldCheck size={16} />,
   loading:     <Wallet size={16} />,
+  LOADING:     <Wallet size={16} />,
   other:       <ReceiptText size={16} />,
+  OTHER:       <ReceiptText size={16} />,
+  PARKING:     <IndianRupee size={16} />,
 };
 
-const CATEGORY_STYLE: Record<CategoryKey, { color: string; bg: string }> = {
+const CATEGORY_STYLE: Record<string, { color: string; bg: string }> = {
   fuel:        { color: "#f07c1e", bg: "#fff3e8" },
+  FUEL:        { color: "#f07c1e", bg: "#fff3e8" },
   food:        { color: "#16a34a", bg: "#f0fdf4" },
   toll:        { color: "#9333ea", bg: "#faf5ff" },
+  TOLL:        { color: "#9333ea", bg: "#faf5ff" },
   maintenance: { color: "#dc2626", bg: "#fef2f2" },
+  REPAIR:      { color: "#dc2626", bg: "#fef2f2" },
   insurance:   { color: "#0ea5e9", bg: "#f0f9ff" },
   loading:     { color: "#d97706", bg: "#fffbeb" },
+  LOADING:     { color: "#d97706", bg: "#fffbeb" },
   other:       { color: "#64748b", bg: "#f8fafc" },
+  OTHER:       { color: "#64748b", bg: "#f8fafc" },
+  PARKING:     { color: "#9333ea", bg: "#faf5ff" },
 };
-
-const INCOME_CATEGORIES: CategoryKey[] = ["loading", "other"];
-const EXPENSE_CATEGORIES: CategoryKey[] = ["fuel", "food", "toll", "maintenance", "insurance", "other"];
-
-const PIE_COLORS = ["#f07c1e", "#16a34a", "#9333ea", "#dc2626", "#0ea5e9", "#d97706", "#64748b"];
 
 const today = () => new Date().toISOString().split("T")[0];
-
-const seed = (): Entry[] => {
-  const d = (offset: number) => {
-    const dt = new Date(); dt.setDate(dt.getDate() - offset);
-    return dt.toISOString().split("T")[0];
-  };
-  return [
-    { id: "s1", type: "expense", category: "fuel",        amount: 9200,  note: "HPCL Nagpur bypass — 100L diesel",   date: d(0), trip: "Mumbai → Nagpur" },
-    { id: "s2", type: "income",  category: "loading",     amount: 42000, note: "Freight payment — steel rods",       date: d(1), trip: "Mumbai → Nagpur" },
-    { id: "s3", type: "expense", category: "toll",        amount: 1240,  note: "NH-44 toll charges",                 date: d(1), trip: "Mumbai → Nagpur" },
-    { id: "s4", type: "expense", category: "food",        amount: 380,   note: "Shanti Dhaba dinner",                date: d(2) },
-    { id: "s5", type: "expense", category: "maintenance", amount: 3200,  note: "Tyre puncture repair × 2",           date: d(3), trip: "Pune → Hyderabad" },
-    { id: "s6", type: "expense", category: "fuel",        amount: 7136,  note: "BP Wardha — 80L diesel",             date: d(5) },
-    { id: "s7", type: "income",  category: "loading",     amount: 38000, note: "Freight — auto parts",               date: d(6), trip: "Pune → Hyderabad" },
-    { id: "s8", type: "expense", category: "food",        amount: 420,   note: "Punjabi Dhaba, breakfast + lunch",   date: d(7) },
-    { id: "s9", type: "expense", category: "insurance",   amount: 24000, note: "Annual truck insurance renewal",     date: d(10) },
-    { id: "s10",type: "expense", category: "toll",        amount: 980,   note: "Hyderabad bypass toll",              date: d(11) },
-  ];
-};
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -94,33 +84,67 @@ type Period = "week" | "month" | "all";
 export function FinanceTracker() {
   const { lang, t } = useLang();
 
-  const CATEGORY_META: Record<CategoryKey, { label: string; icon: React.ReactNode; color: string; bg: string }> = {
+  const CATEGORY_META: Record<string, { label: string; icon: React.ReactNode; color: string; bg: string }> = {
     fuel:        { label: t.catFuel,        icon: CATEGORY_ICONS.fuel,        ...CATEGORY_STYLE.fuel },
+    FUEL:        { label: t.catFuel,        icon: CATEGORY_ICONS.FUEL,        ...CATEGORY_STYLE.FUEL },
     food:        { label: t.catFood,        icon: CATEGORY_ICONS.food,        ...CATEGORY_STYLE.food },
     toll:        { label: t.catToll,        icon: CATEGORY_ICONS.toll,        ...CATEGORY_STYLE.toll },
+    TOLL:        { label: t.catToll,        icon: CATEGORY_ICONS.TOLL,        ...CATEGORY_STYLE.TOLL },
     maintenance: { label: t.catMaintenance, icon: CATEGORY_ICONS.maintenance, ...CATEGORY_STYLE.maintenance },
+    REPAIR:      { label: t.catMaintenance, icon: CATEGORY_ICONS.REPAIR,      ...CATEGORY_STYLE.REPAIR },
     insurance:   { label: t.catInsurance,   icon: CATEGORY_ICONS.insurance,   ...CATEGORY_STYLE.insurance },
     loading:     { label: t.catLoading,     icon: CATEGORY_ICONS.loading,     ...CATEGORY_STYLE.loading },
+    LOADING:     { label: t.catLoading,     icon: CATEGORY_ICONS.LOADING,     ...CATEGORY_STYLE.LOADING },
     other:       { label: t.catOther,       icon: CATEGORY_ICONS.other,       ...CATEGORY_STYLE.other },
+    OTHER:       { label: t.catOther,       icon: CATEGORY_ICONS.OTHER,       ...CATEGORY_STYLE.OTHER },
+    PARKING:     { label: "Parking",        icon: CATEGORY_ICONS.PARKING,     ...CATEGORY_STYLE.PARKING },
   };
-  const [entries, setEntries] = useState<Entry[]>(seed());
+
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("overview");
   const [period, setPeriod] = useState<Period>("month");
-  const [filterCat, setFilterCat] = useState<CategoryKey | "all">("all");
+  const [filterCat, setFilterCat] = useState<string | "all">("all");
   const [filterType, setFilterType] = useState<EntryType | "all">("all");
-  const [showDeleteId, setShowDeleteId] = useState<string | null>(null);
+  const [showDeleteId, setShowDeleteId] = useState<string | number | null>(null);
   const [showVoice, setShowVoice] = useState(false);
+  const [vehicles, setVehicles] = useState<Array<{id: number, vehicle_number: string, vehicle_type: string}>>([]);
 
   // ── Add form state ──
   const [form, setForm] = useState({
     type: "expense" as EntryType,
-    category: "fuel" as CategoryKey,
+    category: "FUEL" as string,
     amount: "",
     note: "",
     date: today(),
     trip: "",
+    vehicle: "",
   });
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    fetchEntries();
+    vehicleService.getVehicles().then(setVehicles).catch(console.error);
+  }, []);
+
+  async function fetchEntries() {
+    try {
+      const data = await expenseService.getExpenses();
+      const mapped = data.map((e: any) => ({
+        id: e.id,
+        type: e.entry_type.toLowerCase(),
+        category: e.category,
+        amount: parseFloat(e.amount),
+        note: e.description || e.category,
+        date: e.expense_date,
+      }));
+      setEntries(mapped);
+    } catch (err) {
+      console.error("Failed to fetch expenses", err);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   // ── Period filter ──
   const filtered = useMemo(() => {
@@ -137,7 +161,7 @@ export function FinanceTracker() {
       if (filterCat !== "all" && e.category !== filterCat) return false;
       if (filterType !== "all" && e.type !== filterType) return false;
       return true;
-    }).sort((a, b) => b.date.localeCompare(a.date));
+    }).sort((a, b) => b.date.toString().localeCompare(a.date.toString()));
   }, [entries, period, filterCat, filterType]);
 
   const totalIncome  = filtered.filter(e => e.type === "income").reduce((s, e) => s + e.amount, 0);
@@ -146,12 +170,12 @@ export function FinanceTracker() {
 
   // ── Pie data ──
   const pieData = useMemo(() => {
-    const map: Partial<Record<CategoryKey, number>> = {};
+    const map: Record<string, number> = {};
     filtered.filter(e => e.type === "expense").forEach(e => {
       map[e.category] = (map[e.category] || 0) + e.amount;
     });
     return Object.entries(map).map(([k, v]) => ({
-      name: CATEGORY_META[k as CategoryKey].label,
+      name: CATEGORY_META[k]?.label || k,
       value: v,
     }));
   }, [filtered]);
@@ -173,36 +197,76 @@ export function FinanceTracker() {
     return days;
   }, [entries]);
 
-  function handleAdd() {
+  async function handleAdd() {
     if (!form.amount || parseFloat(form.amount) <= 0) return;
-    const entry: Entry = {
-      id: Date.now().toString(),
-      type: form.type,
-      category: form.category,
-      amount: parseFloat(form.amount),
-      note: form.note || CATEGORY_META[form.category].label,
-      date: form.date,
-      trip: form.trip || undefined,
-    };
-    setEntries(prev => [entry, ...prev]);
-    setForm({ type: "expense", category: "fuel", amount: "", note: "", date: today(), trip: "" });
-    setSaved(true);
-    setTimeout(() => { setSaved(false); setTab("entries"); }, 1200);
+    
+    try {
+      setLoading(true);
+      await expenseService.addExpense({
+        amount: form.amount,
+        entry_type: form.type.toUpperCase(),
+        category: form.category,
+        expense_date: form.date,
+        description: form.note,
+        vehicle: form.vehicle || null
+      });
+      await fetchEntries();
+      setForm({ type: "expense", category: "FUEL", amount: "", note: "", date: today(), trip: "", vehicle: "" });
+      setSaved(true);
+      setTimeout(() => { setSaved(false); setTab("entries"); }, 1200);
+    } catch (err) {
+      console.error("Failed to add expense", err);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function deleteEntry(id: string) {
-    setEntries(prev => prev.filter(e => e.id !== id));
-    setShowDeleteId(null);
+  async function saveParsedEntry(entry: ParsedFinanceEntry) {
+    const categoryMap: Record<string, string> = {
+      fuel: "FUEL",
+      toll: "TOLL",
+      maintenance: "REPAIR",
+      insurance: "OTHER",
+      food: "OTHER",
+      loading: "LOADING",
+      other: "OTHER",
+    };
+    try {
+      setLoading(true);
+      await expenseService.addExpense({
+        amount: entry.amount,
+        entry_type: entry.type.toUpperCase(),
+        category: categoryMap[entry.category] || "OTHER",
+        expense_date: entry.date,
+        description: `${entry.type === "income" ? "Income note" : "Voice entry"}: ${entry.note}`
+      });
+      await fetchEntries();
+      setTab("entries");
+    } catch (err) {
+      console.error("Failed to save voice entry", err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteEntry(id: string | number) {
+    try {
+      await expenseService.deleteExpense(id as number);
+      setEntries(prev => prev.filter(e => e.id !== id));
+      setShowDeleteId(null);
+    } catch (err) {
+      console.error("Failed to delete expense", err);
+    }
   }
 
   function handleVoiceSave(entry: ParsedFinanceEntry) {
-    setEntries(prev => [{ ...entry, id: Date.now().toString() }, ...prev]);
-    setSaved(true);
-    setTab("entries");
-    setTimeout(() => setSaved(false), 1200);
+    saveParsedEntry(entry);
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────
+  const PIE_COLORS = ["#f07c1e", "#16a34a", "#9333ea", "#dc2626", "#0ea5e9", "#d97706", "#64748b"];
+
+  const EXPENSE_CATEGORIES = ["FUEL", "TOLL", "PARKING", "REPAIR", "OTHER"];
+  const INCOME_CATEGORIES = ["LOADING", "OTHER"];
 
   return (
     <div className="min-h-screen bg-[#f0f4f8] pb-28">
@@ -342,7 +406,7 @@ export function FinanceTracker() {
               {/* Category summary list */}
               <div className="bg-white rounded-3xl p-4 shadow-sm mb-4">
                 <p style={{ fontWeight: 700 }} className="text-[#0f1c35] mb-3">{t.byCategory}</p>
-                {(Object.keys(CATEGORY_META) as CategoryKey[]).map(cat => {
+                {(Object.keys(CATEGORY_META) as string[]).map(cat => {
                   const total = filtered.filter(e => e.category === cat && e.type === "expense").reduce((s, e) => s + e.amount, 0);
                   if (!total) return null;
                   const pct = totalExpense ? Math.round((total / totalExpense) * 100) : 0;
@@ -389,12 +453,12 @@ export function FinanceTracker() {
                 </select>
                 <select
                   value={filterCat}
-                  onChange={e => setFilterCat(e.target.value as CategoryKey | "all")}
+                  onChange={e => setFilterCat(e.target.value as string | "all")}
                   className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none text-[#0f1c35] flex-shrink-0"
                   style={{ fontWeight: 600 }}
                 >
                   <option value="all">{t.allCategories}</option>
-                  {(Object.keys(CATEGORY_META) as CategoryKey[]).map(k => (
+                  {(Object.keys(CATEGORY_META) as string[]).map(k => (
                     <option key={k} value={k}>{CATEGORY_META[k].label}</option>
                   ))}
                 </select>
@@ -408,7 +472,7 @@ export function FinanceTracker() {
               ) : (
                 <div className="space-y-2">
                   {filtered.map(e => {
-                    const meta = CATEGORY_META[e.category];
+                    const meta = CATEGORY_META[e.category] || CATEGORY_META["OTHER"];
                     return (
                       <motion.div
                         key={e.id}
@@ -455,7 +519,7 @@ export function FinanceTracker() {
                 {/* Type toggle */}
                 <div className="flex bg-gray-100 rounded-xl p-1 mb-5">
                   <button
-                    onClick={() => setForm(f => ({ ...f, type: "expense", category: "fuel" }))}
+                    onClick={() => setForm(f => ({ ...f, type: "expense", category: "FUEL" }))}
                     className={`flex-1 py-3 rounded-lg text-sm transition-all flex items-center justify-center gap-2 ${
                       form.type === "expense" ? "bg-red-500 text-white shadow" : "text-gray-500"
                     }`}
@@ -464,7 +528,7 @@ export function FinanceTracker() {
                     <TrendingDown size={16} /> {t.expense}
                   </button>
                   <button
-                    onClick={() => setForm(f => ({ ...f, type: "income", category: "loading" }))}
+                    onClick={() => setForm(f => ({ ...f, type: "income", category: "LOADING" }))}
                     className={`flex-1 py-3 rounded-lg text-sm transition-all flex items-center justify-center gap-2 ${
                       form.type === "income" ? "bg-green-500 text-white shadow" : "text-gray-500"
                     }`}
@@ -488,9 +552,9 @@ export function FinanceTracker() {
                           active ? "border-[#1a4999] bg-[#1a4999]/5" : "border-gray-100 bg-gray-50"
                         }`}
                       >
-                        <div style={{ color: active ? "#1a4999" : meta.color }}>{meta.icon}</div>
+                        <div style={{ color: active ? "#1a4999" : meta?.color }}>{meta?.icon}</div>
                         <span className="text-[10px] text-center leading-tight" style={{ fontWeight: 600, color: active ? "#1a4999" : "#4a5f7a" }}>
-                          {meta.label.split("/")[0]}
+                          {meta?.label.split("/")[0] || cat}
                         </span>
                       </button>
                     );
@@ -518,7 +582,7 @@ export function FinanceTracker() {
                   type="text"
                   value={form.note}
                   onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
-                  placeholder={`e.g. ${CATEGORY_META[form.category].label} at highway`}
+                  placeholder={`e.g. ${CATEGORY_META[form.category]?.label || form.category} at highway`}
                   className="w-full border-2 border-gray-200 focus:border-[#1a4999] rounded-xl px-4 py-3 text-sm outline-none text-[#0f1c35] mb-4 transition-colors"
                 />
 
@@ -545,6 +609,23 @@ export function FinanceTracker() {
                   </div>
                 </div>
 
+                {/* Vehicle selection (for fuel expenses) */}
+                {(form.type === "expense" && form.category === "FUEL") && (
+                  <div className="mb-5">
+                    <p className="text-xs text-gray-400 mb-2" style={{ fontWeight: 600 }}>Vehicle *</p>
+                    <select
+                      value={form.vehicle}
+                      onChange={e => setForm(f => ({ ...f, vehicle: e.target.value }))}
+                      className="w-full border-2 border-gray-200 focus:border-[#1a4999] rounded-xl px-3 py-3 text-sm outline-none transition-colors bg-white"
+                    >
+                      <option value="">Select Vehicle</option>
+                      {vehicles.map(v => (
+                        <option key={v.id} value={v.id}>{v.vehicle_number} ({v.vehicle_type})</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 {/* Save button */}
                 <AnimatePresence mode="wait">
                   {saved ? (
@@ -562,7 +643,7 @@ export function FinanceTracker() {
                     <motion.button
                       key="save"
                       onClick={handleAdd}
-                      disabled={!form.amount || parseFloat(form.amount) <= 0}
+                      disabled={loading || !form.amount || parseFloat(form.amount) <= 0}
                       className={`w-full rounded-xl py-4 flex items-center justify-center gap-2 transition-all disabled:opacity-40 ${
                         form.type === "income" ? "bg-green-500 hover:bg-green-600" : "bg-[#1a4999] hover:bg-[#163d80]"
                       } text-white`}

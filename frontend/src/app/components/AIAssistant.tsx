@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Bot, Mic, Send, X, Sparkles, Volume2 } from "lucide-react";
 import { useLang } from "../LanguageContext";
+import { aiService } from "../api/ai.service";
 
 interface Message {
   id: string;
@@ -52,15 +53,19 @@ export function AIAssistant() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  function sendMessage(text: string) {
+  async function sendMessage(text: string) {
     if (!text.trim()) return;
     setMessages(prev => [...prev, { id: Date.now().toString(), role: "user", text }]);
     setInput("");
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const data = await aiService.chat(text);
+      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", text: data.reply || getResponse(text) }]);
+    } catch (err) {
       setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", text: getResponse(text) }]);
+    } finally {
       setLoading(false);
-    }, 1200);
+    }
   }
 
   return (
