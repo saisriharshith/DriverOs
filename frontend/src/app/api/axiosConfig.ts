@@ -39,7 +39,8 @@ axiosInstance.interceptors.response.use(
       const refreshToken = localStorage.getItem('refresh_token');
       if (refreshToken) {
         try {
-          const response = await axios.post(`${API_BASE_URL}auth/token/refresh/`, {
+          const baseURL = getApiBaseUrl();
+          const response = await axios.post(`${baseURL}auth/token/refresh/`, {
             refresh: refreshToken,
           });
           const { access } = response.data;
@@ -50,7 +51,12 @@ axiosInstance.interceptors.response.use(
           // Redirect to login or logout user
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');
-          window.location.href = '/login';
+          // Check if we are in app stage
+          if (typeof window !== 'undefined') {
+             // In a real app we would use a router or state to redirect
+             // For now we'll just clear and let the app state handle it
+             window.location.reload(); 
+          }
           return Promise.reject(refreshError);
         }
       }

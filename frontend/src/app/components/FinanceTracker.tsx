@@ -281,25 +281,23 @@ export function FinanceTracker() {
       </AnimatePresence>
 
       {/* Header */}
-      <div className="bg-[#1a4999] px-4 pt-10 pb-5">
+      <div className="gradient-header px-4 pt-12 pb-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-white" style={{ fontSize: "1.25rem", fontWeight: 700 }}>{t.financeTracker}</h1>
-            <p className="text-blue-200 text-sm mt-0.5">{t.trackIncomeExpenses}</p>
+            <h1 className="text-white text-xl font-bold">{t.financeTracker}</h1>
+            <p className="text-white/60 text-sm mt-0.5">{t.trackIncomeExpenses}</p>
           </div>
           <div className="flex items-center gap-2">
           <button
             onClick={() => setShowVoice(true)}
-            className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-3 py-2.5 rounded-xl transition-colors"
-            style={{ fontWeight: 700 }}
+            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-3 py-2.5 rounded-xl transition-all font-bold backdrop-blur-sm border border-white/10"
           >
             <Mic size={16} />
             <span className="text-sm hidden sm:inline">{t.addVoiceEntry}</span>
           </button>
           <button
             onClick={() => setTab("add")}
-            className="flex items-center gap-2 bg-[#f07c1e] text-white px-4 py-2.5 rounded-xl shadow"
-            style={{ fontWeight: 700 }}
+            className="btn-primary flex items-center gap-2 px-4 py-2.5"
           >
             <Plus size={16} /> {t.addEntry}
           </button>
@@ -308,21 +306,21 @@ export function FinanceTracker() {
 
         {/* Summary pills */}
         <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white/10 rounded-2xl p-3">
+          <div className="bg-white/10 backdrop-blur rounded-2xl p-3 border border-white/10">
             <div className="flex items-center gap-1 text-green-300 text-xs mb-1">
               <TrendingUp size={12} /> {t.income}
             </div>
-            <p className="text-white" style={{ fontWeight: 700, fontSize: "1rem" }}>{formatINR(totalIncome)}</p>
+            <p className="text-white font-bold text-base">{formatINR(totalIncome)}</p>
           </div>
-          <div className="bg-white/10 rounded-2xl p-3">
+          <div className="bg-white/10 backdrop-blur rounded-2xl p-3 border border-white/10">
             <div className="flex items-center gap-1 text-red-300 text-xs mb-1">
               <TrendingDown size={12} /> {t.expense}
             </div>
-            <p className="text-white" style={{ fontWeight: 700, fontSize: "1rem" }}>{formatINR(totalExpense)}</p>
+            <p className="text-white font-bold text-base">{formatINR(totalExpense)}</p>
           </div>
-          <div className={`rounded-2xl p-3 ${netProfit >= 0 ? "bg-green-500/20" : "bg-red-500/20"}`}>
+          <div className={`backdrop-blur rounded-2xl p-3 border border-white/10 ${netProfit >= 0 ? "bg-green-500/20" : "bg-red-500/20"}`}>
             <div className={`text-xs mb-1 ${netProfit >= 0 ? "text-green-200" : "text-red-200"}`}>{t.net}</div>
-            <p className={`${netProfit >= 0 ? "text-green-200" : "text-red-300"}`} style={{ fontWeight: 700, fontSize: "1rem" }}>
+            <p className={`font-bold text-base ${netProfit >= 0 ? "text-green-200" : "text-red-300"}`}>
               {netProfit >= 0 ? "+" : ""}{formatINR(netProfit)}
             </p>
           </div>
@@ -335,10 +333,9 @@ export function FinanceTracker() {
           <button
             key={p}
             onClick={() => setPeriod(p)}
-            className={`px-4 py-2 rounded-xl text-sm transition-all ${
-              period === p ? "bg-[#1a4999] text-white shadow" : "bg-white text-gray-500"
+            className={`px-4 py-2 rounded-xl text-sm transition-all font-semibold ${
+              period === p ? "bg-primary text-white shadow" : "bg-white text-gray-500 card-hover"
             }`}
-            style={{ fontWeight: 600 }}
           >
             {p === "week" ? t.thisWeek : p === "month" ? t.thisMonth : t.allTime}
           </button>
@@ -355,10 +352,9 @@ export function FinanceTracker() {
           <button
             key={tb.key}
             onClick={() => setTab(tb.key)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm transition-all ${
-              tab === tb.key ? "bg-[#1a4999] text-white shadow" : "text-gray-500 hover:text-gray-700"
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm transition-all font-semibold ${
+              tab === tb.key ? "bg-primary text-white shadow" : "text-gray-500 hover:text-gray-700"
             }`}
-            style={{ fontWeight: 600 }}
           >
             {tb.icon}{tb.label}
           </button>
@@ -373,8 +369,8 @@ export function FinanceTracker() {
             <motion.div key="overview" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
 
               {/* Expense by category pie */}
-              <div className="bg-white rounded-3xl p-4 shadow-sm mb-4">
-                <p style={{ fontWeight: 700 }} className="text-[#0f1c35] mb-3">{t.expenseBreakdown}</p>
+              <div className="card-hover bg-white rounded-3xl p-4 shadow-sm mb-4">
+                <p className="font-bold text-dark mb-3">{t.expenseBreakdown}</p>
                 {pieData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={220}>
                     <PieChart key={lang}>
@@ -390,8 +386,8 @@ export function FinanceTracker() {
               </div>
 
               {/* 7-day bar chart */}
-              <div className="bg-white rounded-3xl p-4 shadow-sm mb-4">
-                <p style={{ fontWeight: 700 }} className="text-[#0f1c35] mb-3">{t.last7Days}</p>
+              <div className="card-hover bg-white rounded-3xl p-4 shadow-sm mb-4">
+                <p className="font-bold text-dark mb-3">{t.last7Days}</p>
                 <ResponsiveContainer width="100%" height={180}>
                   <BarChart key={lang} data={barData} barSize={10}>
                     <XAxis dataKey="label" tick={{ fontSize: 10 }} />
@@ -404,8 +400,8 @@ export function FinanceTracker() {
               </div>
 
               {/* Category summary list */}
-              <div className="bg-white rounded-3xl p-4 shadow-sm mb-4">
-                <p style={{ fontWeight: 700 }} className="text-[#0f1c35] mb-3">{t.byCategory}</p>
+              <div className="card-hover bg-white rounded-3xl p-4 shadow-sm mb-4">
+                <p className="font-bold text-dark mb-3">{t.byCategory}</p>
                 {(Object.keys(CATEGORY_META) as string[]).map(cat => {
                   const total = filtered.filter(e => e.category === cat && e.type === "expense").reduce((s, e) => s + e.amount, 0);
                   if (!total) return null;
@@ -480,16 +476,16 @@ export function FinanceTracker() {
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: 10 }}
-                        className="bg-white rounded-2xl p-4 shadow-sm flex items-center gap-3"
+                        className="card-hover bg-white rounded-2xl p-4 shadow-sm flex items-center gap-3"
                       >
                         <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: meta.bg, color: meta.color }}>
                           {meta.icon}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[#0f1c35] text-sm truncate" style={{ fontWeight: 600 }}>{e.note}</p>
+                          <p className="text-dark text-sm font-semibold truncate">{e.note}</p>
                           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                             <span className="text-gray-400 text-xs">{fmtDate(e.date)}</span>
-                            {e.trip && <span className="text-xs text-[#1a4999] bg-blue-50 px-2 py-0.5 rounded-full truncate max-w-[120px]">{e.trip}</span>}
+                            {e.trip && <span className="text-xs text-primary bg-blue-50 px-2 py-0.5 rounded-full truncate max-w-[120px]">{e.trip}</span>}
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
@@ -549,11 +545,11 @@ export function FinanceTracker() {
                         key={cat}
                         onClick={() => setForm(f => ({ ...f, category: cat }))}
                         className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 transition-all ${
-                          active ? "border-[#1a4999] bg-[#1a4999]/5" : "border-gray-100 bg-gray-50"
+                          active ? "border-primary bg-primary/5" : "border-gray-100 bg-gray-50"
                         }`}
                       >
-                        <div style={{ color: active ? "#1a4999" : meta?.color }}>{meta?.icon}</div>
-                        <span className="text-[10px] text-center leading-tight" style={{ fontWeight: 600, color: active ? "#1a4999" : "#4a5f7a" }}>
+                        <div style={{ color: active ? "var(--color-primary)" : meta?.color }}>{meta?.icon}</div>
+                        <span className="text-[10px] text-center leading-tight font-semibold" style={{ color: active ? "var(--color-primary)" : "#4a5f7a" }}>
                           {meta?.label.split("/")[0] || cat}
                         </span>
                       </button>
@@ -644,10 +640,9 @@ export function FinanceTracker() {
                       key="save"
                       onClick={handleAdd}
                       disabled={loading || !form.amount || parseFloat(form.amount) <= 0}
-                      className={`w-full rounded-xl py-4 flex items-center justify-center gap-2 transition-all disabled:opacity-40 ${
-                        form.type === "income" ? "bg-green-500 hover:bg-green-600" : "bg-[#1a4999] hover:bg-[#163d80]"
-                      } text-white`}
-                      style={{ fontWeight: 700 }}
+                      className={`w-full rounded-xl py-4 flex items-center justify-center gap-2 font-bold transition-all disabled:opacity-40 ${
+                        form.type === "income" ? "bg-green-500 hover:bg-green-600 text-white" : "btn-primary"
+                      }`}
                     >
                       <Plus size={20} />
                       {form.type === "income" ? t.addIncome : t.addExpense}
@@ -681,10 +676,10 @@ export function FinanceTracker() {
               <p className="text-[#0f1c35] text-center mb-1" style={{ fontWeight: 700 }}>{t.deleteEntry}</p>
               <p className="text-gray-400 text-sm text-center mb-5">{t.deleteConfirm}</p>
               <div className="flex gap-3">
-                <button onClick={() => setShowDeleteId(null)} className="flex-1 border-2 border-gray-200 rounded-xl py-3 text-gray-600" style={{ fontWeight: 600 }}>
+                <button onClick={() => setShowDeleteId(null)} className="flex-1 border-2 border-gray-200 rounded-xl py-3 text-gray-600 font-semibold">
                   {t.cancel}
                 </button>
-                <button onClick={() => deleteEntry(showDeleteId)} className="flex-1 bg-red-500 text-white rounded-xl py-3" style={{ fontWeight: 700 }}>
+                <button onClick={() => deleteEntry(showDeleteId)} className="flex-1 bg-red-500 text-white rounded-xl py-3 font-bold">
                   {t.deleteLabel}
                 </button>
               </div>

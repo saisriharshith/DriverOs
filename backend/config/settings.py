@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'ai_assistant',
     'locations',
     'admin_api',
+    'maintenance',
 ]
 
 MIDDLEWARE = [

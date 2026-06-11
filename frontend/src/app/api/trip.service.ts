@@ -13,4 +13,8 @@ export const tripService = {
     const response = await axiosInstance.patch(`trips/${id}/`, data);
     return response.data;
   },
-};
+  completeTrip: async (id: number, data: any) => {
+    const response = await axiosInstance.post(`trips/${id}/complete/`, data);
+    return response.data;
+  },
+  };

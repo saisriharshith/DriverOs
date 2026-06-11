@@ -1,85 +1,131 @@
+from django.utils import timezone
+from django.db.models import Sum
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser
+from .services.gemini_service import gemini_ocr
+from .services.receipt_parser import parse_fuel_receipt_text, extract_structured_data
+from expenses.models import Expense
 from documents.models import Document
-from .models import OCRResult
-from .serializers import OCRResultSerializer
+from vehicles.models import Vehicle
+from trips.models import Trip
 
 
-class OCRResultViewSet(viewsets.ReadOnlyModelViewSet):
-    serializer_class = OCRResultSerializer
+class OCRViewSet(viewsets.ViewSet):
     permission_classes = [permissions.IsAuthenticated]
-    queryset = OCRResult.objects.none()
-
-    def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False):
-            return OCRResult.objects.none()
-        return OCRResult.objects.filter(document__user=self.request.user)
-
-    @action(detail=False, methods=['post'], url_path='process/(?P<document_id>[^/.]+)')
-    def process_document(self, request, document_id=None):
-        try:
-            document = Document.objects.get(id=document_id, user=request.user)
-        except Document.DoesNotExist:
-            return Response({'error': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
-
-        # Create or get OCR result
-        ocr_result, created = OCRResult.objects.get_or_create(document=document)
-
-        # Mock OCR processing - in production, this would use actual OCR
-        # For now, we'll return mock extracted data based on document type
-        mock_data = self._mock_ocr_extraction(document.doc_type)
+    parser_classes = [MultiPartParser, FormParser]
+    
+    @action(detail=False, methods=['post'], url_path='process-receipt')
+    def process_receipt(self, request):
+        """Process fuel receipt image or text"""
+        image = request.FILES.get('image')
+        text = request.data.get('text', '')
+        vehicle_id = request.data.get('vehicle')
         
-        ocr_result.extracted_text = mock_data['text']
-        ocr_result.confidence_score = mock_data['confidence']
-        ocr_result.is_processed = True
-        ocr_result.save()
-
-        # Update document with extracted data
-        document.extracted_data = mock_data['structured_data']
-        document.save(update_fields=['extracted_data'])
-
-        return Response(OCRResultSerializer(ocr_result).data)
-
-    def _mock_ocr_extraction(self, doc_type):
-        """Mock OCR extraction based on document type"""
-        mock_responses = {
-            'LICENSE': {
-                'text': 'Driving License\nNumber: DL1234567890\nName: Test Driver\nDOB: 01/01/1990\nValid Till: 01/01/2030',
-                'confidence': 0.95,
-                'structured_data': {
-                    'number': 'DL1234567890',
-                    'name': 'Test Driver',
-                    'expiry': '2030-01-01'
-                }
-            },
-            'RC': {
-                'text': 'Registration Certificate\nVehicle: TS09EA1234\nOwner: Test Driver\nChassis: MA3ABC1234567890\nEngine: ENG123456',
-                'confidence': 0.92,
-                'structured_data': {
-                    'number': 'TS09EA1234',
-                    'vehicle_number': 'TS09EA1234'
-                }
-            },
-            'INSURANCE': {
-                'text': 'Vehicle Insurance Policy\nPolicy No: INS123456789\nVehicle: TS09EA1234\nValid: 01/01/2025 to 01/01/2026',
-                'confidence': 0.93,
-                'structured_data': {
-                    'policy_number': 'INS123456789',
-                    'expiry': '2026-01-01'
-                }
-            },
-            'PUC': {
-                'text': 'Pollution Under Control Certificate\nCertificate No: PUC123456\nVehicle: TS09EA1234\nValid Till: 01/07/2025',
-                'confidence': 0.90,
-                'structured_data': {
-                    'certificate_number': 'PUC123456',
-                    'expiry': '2025-07-01'
-                }
-            },
-        }
-        return mock_responses.get(doc_type, {
-            'text': 'Document processed',
-            'confidence': 0.85,
-            'structured_data': {}
+        # Parse from image using Gemini Vision
+        if image:
+            ocr_result = gemini_ocr.process_receipt(image)
+        else:
+            ocr_result = {}
+        
+        # Parse from text (voice input)
+        if text:
+            voice_result = parse_fuel_receipt_text(text)
+            # Merge results, voice takes precedence for missing fields
+            for key, value in voice_result.items():
+                if value and not ocr_result.get(key):
+                    ocr_result[key] = value
+        
+        # Auto-link to active trip if vehicle provided
+        trip = None
+        if vehicle_id:
+            try:
+                vehicle = Vehicle.objects.get(id=vehicle_id, user=request.user)
+                trip = Trip.objects.filter(vehicle=vehicle, status='ACTIVE').first()
+            except Vehicle.DoesNotExist:
+                pass
+        
+        return Response({
+            'ocr_result': ocr_result,
+            'active_trip_id': trip.id if trip else None,
+            'can_save': bool(ocr_result.get('amount') or ocr_result.get('litres'))
         })
+    
+    @action(detail=False, methods=['post'], url_path='process-document')
+    def process_document(self, request):
+        """Process vehicle document (RC, Insurance, Permit, PUC, Fitness)"""
+        image = request.FILES.get('image')
+        doc_type = request.data.get('doc_type', 'RC')
+        
+        if not image:
+            return Response({'error': 'Image required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        ocr_result = gemini_ocr.process_document(image, doc_type)
+        structured = extract_structured_data(ocr_result, doc_type)
+        
+        return Response({
+            'ocr_result': ocr_result,
+            'structured_data': structured,
+            'doc_type': doc_type,
+        })
+    
+    @action(detail=False, methods=['post'], url_path='save-expense')
+    def save_expense(self, request):
+        """Save parsed expense from OCR"""
+        ocr_data = request.data.get('ocr_data', {})
+        vehicle_id = request.data.get('vehicle')
+        trip_id = request.data.get('trip')
+        
+        try:
+            vehicle = Vehicle.objects.get(id=vehicle_id, user=request.user)
+        except Vehicle.DoesNotExist:
+            return Response({'error': 'Vehicle not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        trip = None
+        if trip_id:
+            try:
+                trip = Trip.objects.get(id=trip_id, vehicle=vehicle)
+            except Trip.DoesNotExist:
+                pass
+        
+        expense = Expense.objects.create(
+            vehicle=vehicle,
+            trip=trip,
+            user=request.user,
+            category=ocr_data.get('category', 'FUEL'),
+            entry_type='EXPENSE',
+            amount=ocr_data.get('amount', 0),
+            expense_date=ocr_data.get('date', timezone.now().date()),
+            description=ocr_data.get('fuel_station', 'OCR Entry'),
+            litres=ocr_data.get('litres'),
+            price_per_litre=ocr_data.get('price_per_litre'),
+            odometer_reading=ocr_data.get('odometer_reading'),
+            fuel_station=ocr_data.get('fuel_station'),
+            fuel_type=ocr_data.get('fuel_type'),
+            ocr_extracted=ocr_data,
+        )
+        
+        # Auto-update trip totals if linked
+        if trip:
+            self._update_trip_totals(trip)
+        
+        return Response({'id': expense.id, 'message': 'Expense saved'})
+    
+    def _update_trip_totals(self, trip):
+        expenses = trip.expenses.all()
+        trip.total_fuel_cost = expenses.filter(category='FUEL').aggregate(Sum('amount'))['amount__sum'] or 0
+        trip.total_toll_cost = expenses.filter(category='TOLL').aggregate(Sum('amount'))['amount__sum'] or 0
+        trip.total_other_expenses = expenses.exclude(category__in=['FUEL', 'TOLL']).aggregate(Sum('amount'))['amount__sum'] or 0
+        
+        total_expenses = trip.total_fuel_cost + trip.total_toll_cost + trip.total_other_expenses
+        trip.net_profit = trip.freight_amount - total_expenses
+        
+        if trip.start_odometer and trip.end_odometer and trip.total_fuel_cost:
+            # Calculate mileage from fuel expenses
+            fuel_litres = expenses.filter(category='FUEL', litres__isnull=False).aggregate(Sum('litres'))['litres__sum'] or 0
+            if fuel_litres:
+                distance = trip.end_odometer - trip.start_odometer
+                trip.mileage_achieved = distance / float(fuel_litres)
+        
+        trip.save()

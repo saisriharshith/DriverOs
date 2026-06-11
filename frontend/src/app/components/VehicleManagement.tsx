@@ -87,28 +87,53 @@ export function VehicleManagement() {
 
   const overallScore = Math.round(VEHICLE_HEALTH.reduce((a, h) => a + h.score, 0) / VEHICLE_HEALTH.length);
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f0f4f8] pb-24">
+        <div className="gradient-header px-4 pt-12 pb-6 animate-pulse">
+          <div className="w-40 h-5 bg-white/20 rounded" />
+          <div className="w-24 h-3 bg-white/20 rounded mt-2" />
+        </div>
+        <div className="p-4 space-y-4">
+          <div className="h-48 bg-white rounded-3xl animate-pulse" />
+          <div className="h-64 bg-white rounded-3xl animate-pulse" />
+          <div className="h-24 bg-white rounded-2xl animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f0f4f8] pb-24">
-      <div className="bg-[#1a4999] px-4 pt-10 pb-5">
-        <h1 className="text-white text-xl font-semibold">{t.vehicleManagement}</h1>
+      <div className="gradient-header px-4 pt-12 pb-6">
+        <h1 className="text-white text-xl font-bold">{t.vehicleManagement}</h1>
         <p className="text-white/60 text-sm mt-1">{t.truckProfile}</p>
       </div>
 
       {/* Truck Profile */}
       <div className="px-4 mt-4">
         <div className="bg-white rounded-3xl p-5">
-          {loading ? (
-             <p className="text-center text-gray-500 py-10">Loading vehicle info...</p>
+          {vehicles.length === 0 ? (
+              <div className="text-center py-8">
+              <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <Truck size={32} className="text-gray-400" />
+              </div>
+              <p className="text-gray-500 mb-4 font-semibold">No vehicles registered</p>
+              <p className="text-gray-400 text-xs mb-4">Add your first truck to start tracking trips, expenses, and maintenance</p>
+              <button onClick={() => setShowAddVehicle(true)} className="btn-primary inline-flex items-center gap-2 px-6 py-3 text-sm shadow-md">
+                <Plus size={16} /> Add Your First Vehicle
+              </button>
+            </div>
           ) : primaryVehicle ? (
             <>
               <div className="flex items-center gap-4 mb-4">
-                <div className="w-16 h-16 bg-[#1a4999] rounded-2xl flex items-center justify-center">
+                <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center">
                   <Truck size={32} className="text-white" />
                 </div>
                 <div>
-                  <h2 className="text-[#0f1c35] font-semibold text-lg">{primaryVehicle.vehicle_type}</h2>
-                  <p className="text-orange-500 font-semibold">{primaryVehicle.vehicle_number}</p>
-                  <p className="text-[#4a5f7a] text-xs mt-0.5">Insurance Expiry: {primaryVehicle.insurance_expiry}</p>
+                  <h2 className="text-dark font-semibold text-lg">{primaryVehicle.vehicle_type}</h2>
+                  <p className="text-secondary font-bold text-base">{primaryVehicle.vehicle_number}</p>
+                  <p className="text-gray-400 text-xs mt-0.5">Insurance Expiry: {primaryVehicle.insurance_expiry || "N/A"}</p>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-3">
@@ -117,27 +142,20 @@ export function VehicleManagement() {
                   { label: "PUC", value: primaryVehicle.puc_expiry || "N/A" },
                   { label: "Type", value: primaryVehicle.vehicle_type },
                 ].map(({ label, value }) => (
-                  <div key={label} className="bg-[#f0f4f8] rounded-xl p-2.5 text-center">
-                    <p className="text-[#0f1c35] text-[10px] font-semibold truncate">{value}</p>
-                    <p className="text-[#4a5f7a] text-[10px]">{label}</p>
+                  <div key={label} className="bg-gray-100 rounded-xl p-2.5 text-center">
+                    <p className="text-dark text-[10px] font-semibold truncate">{value}</p>
+                    <p className="text-gray-400 text-[10px]">{label}</p>
                   </div>
                 ))}
               </div>
             </>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-gray-500 mb-4">No vehicles registered</p>
-              <button onClick={() => setShowAddVehicle(true)} className="bg-[#1a4999] text-white rounded-xl px-4 py-2.5 text-sm font-semibold inline-flex items-center gap-2">
-                <Plus size={16} /> Add Vehicle
-              </button>
-            </div>
-          )}
+          ) : null}
         </div>
       </div>
 
-      {primaryVehicle && (
+      {vehicles.length > 0 && (
         <div className="px-4 mt-3">
-          <button onClick={() => setShowAddVehicle(true)} className="w-full bg-[#1a4999] text-white rounded-2xl py-3 flex items-center justify-center gap-2 font-semibold">
+          <button onClick={() => setShowAddVehicle(true)} className="w-full btn-primary rounded-2xl py-3 flex items-center justify-center gap-2">
             <Plus size={18} /> Add Another Vehicle
           </button>
         </div>
@@ -185,14 +203,14 @@ export function VehicleManagement() {
 
       {/* Next Service */}
       <div className="px-4 mt-4">
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between">
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 card-hover flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
               <Wrench size={18} className="text-amber-600" />
             </div>
             <div>
-              <p className="text-[#0f1c35] text-sm font-semibold">{t.nextServiceDue}</p>
-              <p className="text-[#4a5f7a] text-xs">15 Jul 2025 or 1,30,000 km</p>
+              <p className="text-dark text-sm font-semibold">{t.nextServiceDue}</p>
+              <p className="text-gray-400 text-xs">15 Jul 2025 or 1,30,000 km</p>
             </div>
           </div>
           <span className="text-amber-600 text-sm font-semibold">37 {t.daysLeft}</span>
@@ -201,15 +219,15 @@ export function VehicleManagement() {
 
       {/* Fuel Efficiency */}
       <div className="px-4 mt-4">
-        <div className="bg-white rounded-2xl p-4 flex items-center gap-3">
+        <div className="card-hover bg-white rounded-2xl p-4 flex items-center gap-3">
           <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-            <Fuel size={18} className="text-[#1a4999]" />
+            <Fuel size={18} className="text-primary" />
           </div>
           <div className="flex-1">
-            <p className="text-[#0f1c35] text-sm font-semibold">{t.fuelEfficiency}</p>
-            <p className="text-[#4a5f7a] text-xs">Avg 3.8 km/L · Last fill: 180L @ ₹6,840</p>
+            <p className="text-dark text-sm font-semibold">{t.fuelEfficiency}</p>
+            <p className="text-gray-400 text-xs">Avg 3.8 km/L · Last fill: 180L @ ₹6,840</p>
           </div>
-          <CircleGauge size={20} className="text-[#1a4999]" />
+          <CircleGauge size={20} className="text-primary" />
         </div>
       </div>
 
@@ -217,15 +235,15 @@ export function VehicleManagement() {
       <div className="px-4 mt-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-[#0f1c35] font-semibold">{t.serviceHistory}</h3>
-          <button onClick={() => setShowAddService(true)} className="bg-[#1a4999] text-white rounded-xl px-3 py-1.5 text-xs flex items-center gap-1">
+          <button onClick={() => setShowAddService(true)} className="btn-primary rounded-xl px-3 py-1.5 text-xs flex items-center gap-1">
             <Plus size={13} /> {t.addRecord}
           </button>
         </div>
         <div className="flex flex-col gap-2">
           {SERVICE_HISTORY.map(service => (
-            <button key={service.id} onClick={() => setSelectedService(service)} className="bg-white rounded-2xl p-4 flex items-center gap-3 text-left w-full">
-              <div className="w-10 h-10 bg-[#f0f4f8] rounded-xl flex items-center justify-center shrink-0">
-                <Wrench size={18} className="text-[#1a4999]" />
+            <button key={service.id} onClick={() => setSelectedService(service)} className="card-hover bg-white rounded-2xl p-4 flex items-center gap-3 text-left w-full">
+              <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center shrink-0">
+                <Wrench size={18} className="text-primary" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[#0f1c35] text-sm font-semibold">{service.type}</p>
@@ -282,7 +300,7 @@ export function VehicleManagement() {
                 </div>
               ))}
             </div>
-            <button onClick={() => setShowAddService(false)} className="w-full bg-[#1a4999] text-white rounded-2xl py-4 font-semibold">
+            <button onClick={() => setShowAddService(false)} className="w-full btn-primary rounded-2xl py-4">
               {t.saveRecord}
             </button>
           </div>
@@ -317,7 +335,7 @@ export function VehicleManagement() {
                 </div>
               ))}
             </div>
-            <button onClick={handleAddVehicle} disabled={!vehicleForm.vehicle_number || !vehicleForm.vehicle_type} className="w-full bg-[#1a4999] text-white rounded-2xl py-4 font-semibold disabled:opacity-50">
+            <button onClick={handleAddVehicle} disabled={!vehicleForm.vehicle_number || !vehicleForm.vehicle_type} className="w-full btn-primary rounded-2xl py-4 disabled:opacity-50">
               Save Vehicle
             </button>
           </div>

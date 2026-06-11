@@ -16,6 +16,7 @@ class Document(models.Model):
     class Status(models.TextChoices):
         VALID = 'VALID', 'Valid'
         EXPIRED = 'EXPIRED', 'Expired'
+        EXPIRING_SOON = 'EXPIRING_SOON', 'Expiring Soon'
         PENDING = 'PENDING', 'Pending Verification'
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='documents')
