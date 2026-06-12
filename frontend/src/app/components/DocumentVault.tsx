@@ -3,6 +3,7 @@ import { FileText, Upload, Eye, Share2, AlertTriangle, CheckCircle, Clock, Downl
 import { useLang } from "../LanguageContext";
 import { documentService } from "../api/document.service";
 import { vehicleService } from "../api/vehicle.service";
+import { aiService } from "../api/ai.service";
 
 type DocStatus = "valid" | "expiring" | "expired" | "missing" | "pending";
 
@@ -48,6 +49,7 @@ export function DocumentVault() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [analyzing, setAnalyzing] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadForm, setUploadForm] = useState({ doc_type: "LICENSE", expiry_date: "", vehicle: "" });
 
@@ -55,6 +57,27 @@ export function DocumentVault() {
     fetchDocs();
     vehicleService.getVehicles().then(setVehicles).catch(console.error);
   }, []);
+
+  async function handleFileChange(file: File | null) {
+    if (!file) return;
+    setSelectedFile(file);
+    setAnalyzing(true);
+    try {
+      const result = await aiService.analyzeDocument(file, uploadForm.doc_type);
+      if (result.structured_data) {
+        const data = result.structured_data;
+        // Map extracted fields to form
+        const expiry = data.policy_end || data.valid_to || data.registration_date;
+        if (expiry) {
+          setUploadForm(prev => ({ ...prev, expiry_date: expiry }));
+        }
+      }
+    } catch (err) {
+      console.error("AI analysis failed", err);
+    } finally {
+      setAnalyzing(false);
+    }
+  }
 
   async function fetchDocs() {
     try {
@@ -304,14 +327,20 @@ export function DocumentVault() {
               <label className="text-white rounded-2xl py-5 flex flex-col items-center gap-2 cursor-pointer"
                 style={{ background: "linear-gradient(135deg, #1a4999, #2563eb)" }}>
                 <Camera size={28} /><span className="font-bold">{t.takePhoto}</span>
-                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => setSelectedFile(e.target.files?.[0] || null)} />
+                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => handleFileChange(e.target.files?.[0] || null)} />
               </label>
               <label className="bg-gray-100 text-gray-700 rounded-2xl py-5 flex flex-col items-center gap-2 cursor-pointer">
                 <Upload size={28} /><span className="font-bold">{t.uploadFile}</span>
-                <input type="file" accept="image/*,application/pdf" className="hidden" onChange={e => setSelectedFile(e.target.files?.[0] || null)} />
+                <input type="file" accept="image/*,application/pdf" className="hidden" onChange={e => handleFileChange(e.target.files?.[0] || null)} />
               </label>
             </div>
-            {selectedFile && (
+            {analyzing && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-4 flex items-center gap-3">
+                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <p className="text-primary text-sm font-bold italic">AI analyzing document fields...</p>
+              </div>
+            )}
+            {selectedFile && !analyzing && (
               <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-4">
                 <p className="text-green-700 text-sm font-bold truncate">{selectedFile.name}</p>
                 <p className="text-green-600 text-xs">{Math.ceil(selectedFile.size / 1024)} KB selected</p>

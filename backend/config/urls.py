@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from rest_framework.routers import DefaultRouter
+from rest_framework.routers import SimpleRouter
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenRefreshView
 
@@ -21,7 +21,7 @@ from ai_assistant.views import AssistantChatView
 from maintenance.views import MaintenanceScheduleViewSet, MaintenanceRecordViewSet
 from ocr.views import OCRViewSet
 
-router = DefaultRouter()
+router = SimpleRouter()
 router.register(r'drivers', DriverViewSet, basename='driver')
 router.register(r'emergency-contacts', EmergencyContactViewSet, basename='emergency-contact')
 router.register(r'health-records', HealthRecordViewSet, basename='health-record')

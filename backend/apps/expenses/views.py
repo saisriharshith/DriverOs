@@ -17,7 +17,17 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         return Expense.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
-        expense = serializer.save(user=self.request.user)
+        # Automatically link to active trip if not provided
+        trip = serializer.validated_data.get('trip')
+        if not trip:
+            active_trip = Trip.objects.filter(driver=self.request.user, status='ACTIVE').first()
+            if active_trip:
+                expense = serializer.save(user=self.request.user, trip=active_trip)
+            else:
+                expense = serializer.save(user=self.request.user)
+        else:
+            expense = serializer.save(user=self.request.user)
+            
         self._recalc_trip_profit(expense)
 
     def perform_update(self, serializer):

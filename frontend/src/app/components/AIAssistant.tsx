@@ -53,6 +53,19 @@ export function AIAssistant() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  function speak(text: string) {
+    if (!window.speechSynthesis) return;
+    // Cancel existing speech
+    window.speechSynthesis.cancel();
+    const msg = new SpeechSynthesisUtterance(text);
+    // Try to find a good voice (local language if possible)
+    const voices = window.speechSynthesis.getVoices();
+    const voice = voices.find(v => v.lang.startsWith(lang)) || voices[0];
+    if (voice) msg.voice = voice;
+    msg.lang = lang === "en" ? "en-IN" : (lang === "hi" ? "hi-IN" : lang);
+    window.speechSynthesis.speak(msg);
+  }
+
   async function sendMessage(text: string) {
     if (!text.trim()) return;
     setMessages(prev => [...prev, { id: Date.now().toString(), role: "user", text }]);
@@ -109,7 +122,10 @@ export function AIAssistant() {
             <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${msg.role === "user" ? "bg-[#1a4999] text-white rounded-tr-sm" : "bg-white text-[#0f1c35] rounded-tl-sm"}`}>
               <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
               {msg.role === "assistant" && (
-                <button className="flex items-center gap-1 mt-2 text-[#4a5f7a] text-xs">
+                <button 
+                  onClick={() => speak(msg.text)}
+                  className="flex items-center gap-1 mt-2 text-[#4a5f7a] text-xs hover:text-[#1a4999] transition-colors"
+                >
                   <Volume2 size={12} /> {t.listen}
                 </button>
               )}

@@ -5,29 +5,58 @@ import { emergencyService } from "../api/emergency.service";
 import { authService } from "../api/auth.service";
 import { driverService } from "../api/driver.service";
 
-const EMERGENCY_CONTACTS = [
-  { id: 1, name: "Sunita Kumar (Wife)", phone: "+91-98210-11234", relation: "Spouse" },
-  { id: 2, name: "Ramesh Transport Co.", phone: "+91-99870-55678", relation: "Fleet Owner" },
-  { id: 3, name: "Mohan Kumar (Brother)", phone: "+91-90110-33456", relation: "Family" },
-];
-
 export function HealthEmergency() {
   const { t } = useLang();
   const [sosPressed, setSosPressed] = useState(false);
   const [sosCountdown, setSosCountdown] = useState(5);
   const [sosTriggered, setSosTriggered] = useState(false);
   const [showAddContact, setShowAddContact] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [driver, setDriver] = useState<any>(null);
+  const [contacts, setContacts] = useState<any[]>([]);
   const [contactForm, setContactForm] = useState({
-    emergency_contact_name: "",
-    emergency_contact_phone: "",
-    relation: "",
+    name: "",
+    phone: "",
+    relationship: "",
+  });
+  const [profileForm, setProfileForm] = useState({
+    blood_group: "",
+    height_cm: "",
+    weight_kg: "",
+    medical_conditions: "",
+    medications: "",
+    allergies: "",
+    doctor_name: "",
   });
 
   useEffect(() => {
-    authService.getProfile().then(setUser).catch(console.error);
-    driverService.getProfile().then(setDriver).catch(console.error);
+    async function loadData() {
+      try {
+        const [u, d, c] = await Promise.all([
+          authService.getProfile(),
+          driverService.getProfile(),
+          driverService.getEmergencyContacts()
+        ]);
+        setUser(u);
+        setDriver(d);
+        if (d) {
+          setProfileForm({
+            blood_group: d.blood_group || "",
+            height_cm: d.height_cm || "",
+            weight_kg: d.weight_kg || "",
+            medical_conditions: d.medical_conditions || "",
+            medications: d.medications || "",
+            allergies: d.allergies || "",
+            doctor_name: d.doctor_name || "",
+          });
+        }
+        setContacts(c);
+      } catch (err) {
+        console.error("Failed to load health/emergency data", err);
+      }
+    }
+    loadData();
   }, []);
 
   async function triggerSOS() {
@@ -41,17 +70,30 @@ export function HealthEmergency() {
   }
 
   async function saveEmergencyContact() {
-    if (!contactForm.emergency_contact_name || !contactForm.emergency_contact_phone) return;
+    if (!contactForm.name || !contactForm.phone) return;
     try {
-      const updated = await driverService.updateProfile({
-        emergency_contact_name: contactForm.emergency_contact_name,
-        emergency_contact_phone: contactForm.emergency_contact_phone,
-      });
-      setDriver(updated);
-      setContactForm({ emergency_contact_name: "", emergency_contact_phone: "", relation: "" });
+      await driverService.addEmergencyContact(contactForm);
+      const updatedContacts = await driverService.getEmergencyContacts();
+      setContacts(updatedContacts);
+      setContactForm({ name: "", phone: "", relationship: "" });
       setShowAddContact(false);
     } catch (err) {
       console.error("Failed to save emergency contact", err);
+    }
+  }
+
+  async function handleSaveProfile() {
+    try {
+      const payload = { ...profileForm };
+      // Convert empty strings to null for integer fields
+      if ((payload as any).height_cm === "") (payload as any).height_cm = null;
+      if ((payload as any).weight_kg === "") (payload as any).weight_kg = null;
+      
+      const updated = await driverService.updateProfile(payload);
+      setDriver(updated);
+      setShowEditProfile(false);
+    } catch (err) {
+      console.error("Failed to save profile", err);
     }
   }
 
@@ -126,7 +168,12 @@ export function HealthEmergency() {
 
       {/* Medical Profile */}
       <div className="px-4 mt-5">
-        <h3 className="text-[#0f1c35] font-semibold mb-3">{t.medicalProfile}</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-[#0f1c35] font-semibold">{t.medicalProfile}</h3>
+          <button onClick={() => setShowEditProfile(true)} className="text-[#1a4999] text-xs font-bold bg-blue-50 px-3 py-1.5 rounded-lg flex items-center gap-1">
+            <Plus size={12} /> Edit
+          </button>
+        </div>
         <div className="bg-white rounded-2xl p-4">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-12 h-12 bg-red-100 rounded-2xl flex items-center justify-center">
@@ -164,28 +211,25 @@ export function HealthEmergency() {
           </button>
         </div>
         <div className="flex flex-col gap-2">
-          {[
-            ...(driver?.emergency_contact_name ? [{
-              id: "saved",
-              name: driver.emergency_contact_name,
-              phone: driver.emergency_contact_phone,
-              relation: "Emergency Contact",
-            }] : []),
-            ...EMERGENCY_CONTACTS,
-          ].map(contact => (
+          {contacts.map(contact => (
             <div key={contact.id} className="bg-white rounded-2xl p-4 flex items-center gap-3">
               <div className="w-10 h-10 bg-[#1a4999] rounded-xl flex items-center justify-center shrink-0">
                 <User size={18} className="text-white" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[#0f1c35] text-sm font-semibold">{contact.name}</p>
-                <p className="text-[#4a5f7a] text-xs">{contact.relation} · {contact.phone}</p>
+                <p className="text-[#4a5f7a] text-xs">{contact.relationship} · {contact.phone}</p>
               </div>
               <a href={`tel:${contact.phone}`} className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center shrink-0">
                 <Phone size={18} className="text-green-600" />
               </a>
             </div>
           ))}
+          {contacts.length === 0 && (
+            <div className="bg-white rounded-2xl p-8 text-center border-2 border-dashed border-gray-200">
+              <p className="text-gray-400 text-sm">No emergency contacts added yet.</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -209,6 +253,45 @@ export function HealthEmergency() {
         </div>
       </div>
 
+      {/* Edit Profile Modal */}
+      {showEditProfile && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end">
+          <div className="bg-white w-full rounded-t-3xl p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-[#0f1c35] text-lg font-semibold">Update Medical Profile</h3>
+              <button onClick={() => setShowEditProfile(false)}><X size={22} className="text-[#4a5f7a]" /></button>
+            </div>
+            <div className="flex flex-col gap-3 mb-4">
+              {[
+                { key: "blood_group", label: "Blood Group" },
+                { key: "height_cm", label: "Height (cm)" },
+                { key: "weight_kg", label: "Weight (kg)" },
+                { key: "medical_conditions", label: "Medical Conditions" },
+                { key: "medications", label: "Medications" },
+                { key: "allergies", label: "Allergies" },
+                { key: "doctor_name", label: "Doctor Name" },
+              ].map(field => (
+                <div key={field.key} className="bg-[#f0f4f8] rounded-xl px-4 py-3">
+                  <p className="text-[#4a5f7a] text-xs mb-1">{field.label}</p>
+                  <input
+                    className="w-full bg-transparent text-[#0f1c35] text-sm outline-none"
+                    placeholder={field.label}
+                    value={(profileForm as any)[field.key]}
+                    onChange={e => setProfileForm(prev => ({ ...prev, [field.key]: e.target.value }))}
+                  />
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={handleSaveProfile}
+              className="w-full bg-[#1a4999] text-white rounded-2xl py-4 font-semibold"
+            >
+              Save Profile
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Add Contact Modal */}
       {showAddContact && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-end">
@@ -219,9 +302,9 @@ export function HealthEmergency() {
             </div>
             <div className="flex flex-col gap-3 mb-4">
               {[
-                { key: "emergency_contact_name", label: t.fullName },
-                { key: "emergency_contact_phone", label: t.phoneNumber },
-                { key: "relation", label: t.relation },
+                { key: "name", label: t.fullName },
+                { key: "phone", label: t.phoneNumber },
+                { key: "relationship", label: t.relation },
               ].map(field => (
                 <div key={field.key} className="bg-[#f0f4f8] rounded-xl px-4 py-3">
                   <p className="text-[#4a5f7a] text-xs mb-1">{field.label}</p>
@@ -236,7 +319,7 @@ export function HealthEmergency() {
             </div>
             <button
               onClick={saveEmergencyContact}
-              disabled={!contactForm.emergency_contact_name || !contactForm.emergency_contact_phone}
+              disabled={!contactForm.name || !contactForm.phone}
               className="w-full bg-[#1a4999] text-white rounded-2xl py-4 font-semibold disabled:opacity-50"
             >
               {t.saveContact}

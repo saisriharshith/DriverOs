@@ -19,7 +19,7 @@ def calculate_user_compliance(user):
             score -= 8
             deductions.append(f"Missing {doc_type}")
         else:
-            doc = docs.filter(doc_type=doc_type).order_by('-created_at').first()
+            doc = docs.filter(doc_type=doc_type).order_by('-upload_date').first()
             if doc.status == 'EXPIRED':
                 score -= 8
                 deductions.append(f"Expired {doc_type}")
@@ -47,7 +47,7 @@ def calculate_user_compliance(user):
     
     risk_level = 'SAFE'
     if score < 40:
-        risk_level = 'CRITICAL'
+        risk_level = 'HIGH'
     elif score < 70:
         risk_level = 'WARNING'
         

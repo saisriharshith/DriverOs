@@ -10,13 +10,14 @@ interface LoginPageProps {
   onBack?: () => void;
 }
 
-type Step = "lang" | "phone" | "otp";
+type Step = "lang" | "phone" | "otp" | "profile";
 
 export function LoginPage({ onLogin, onBack }: LoginPageProps) {
   const { lang, setLang, t } = useLang();
   const [step, setStep] = useState<Step>("lang");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [timer, setTimer] = useState(30);
@@ -85,10 +86,32 @@ export function LoginPage({ onLogin, onBack }: LoginPageProps) {
     setError("");
     setLoading(true);
     try {
-      await authService.verifyOTP(phone, otpCode, "DRIVER", lang.toUpperCase());
-      onLogin();
+      const response = await authService.verifyOTP(phone, otpCode, "DRIVER", lang.toUpperCase());
+      if (!response.user.name) {
+        setStep("profile");
+      } else {
+        onLogin();
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || t.invalidOTP);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSaveProfile() {
+    if (!name.trim()) {
+      setError("Please enter your name");
+      return;
+    }
+    setLoading(true);
+    try {
+      // We assume there's a profile update method in authService or similar
+      // For now, let's use a generic update if available or direct axios
+      await authService.updateProfile({ name });
+      onLogin();
+    } catch (err: any) {
+      setError("Failed to save profile");
     } finally {
       setLoading(false);
     }
@@ -386,6 +409,39 @@ export function LoginPage({ onLogin, onBack }: LoginPageProps) {
                   className="w-full bg-[#1a4999] hover:bg-[#163d80] disabled:opacity-40 disabled:cursor-not-allowed text-white py-4 rounded-xl transition-colors"
                 >
                   {loading ? t.loggingIn : t.verifyOTP}
+                </button>
+              </motion.div>
+            )}
+            {step === "profile" && (
+              <motion.div
+                key="profile"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2 }}
+              >
+                <h2 className="text-gray-900 mb-1">Setup Your Profile</h2>
+                <p className="text-gray-400 text-sm mb-7">Just a few more details to get started</p>
+
+                <div className="mb-6">
+                  <p className="text-xs text-gray-500 mb-1 font-semibold uppercase">Full Name</p>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => { setName(e.target.value); setError(""); }}
+                    placeholder="Enter your full name"
+                    className="w-full px-4 py-4 border-2 rounded-xl outline-none focus:border-[#1a4999] border-gray-200 transition-colors text-gray-900"
+                    autoFocus
+                  />
+                  {error && <p className="text-red-500 text-xs mt-2">{error}</p>}
+                </div>
+
+                <button
+                  onClick={handleSaveProfile}
+                  disabled={loading || !name.trim()}
+                  className="w-full bg-[#1a4999] hover:bg-[#163d80] disabled:opacity-40 disabled:cursor-not-allowed text-white py-4 rounded-xl transition-colors mb-4 font-bold"
+                >
+                  {loading ? "Saving..." : "Complete Setup"}
                 </button>
               </motion.div>
             )}

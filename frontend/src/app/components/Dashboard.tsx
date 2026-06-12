@@ -10,6 +10,7 @@ import { useLang } from "../LanguageContext";
 import { LANGUAGE_OPTIONS, LangCode } from "../translations";
 import { analyticsService } from "../api/analytics.service";
 import { authService } from "../api/auth.service";
+import { locationService } from "../api/location.service";
 
 interface DashboardStats {
   total_expenses: number;
@@ -52,6 +53,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (screen: string) => void
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [address, setAddress] = useState<string>("Searching...");
 
   useEffect(() => {
     async function fetchData() {
@@ -69,6 +71,13 @@ export function Dashboard({ onNavigate }: { onNavigate: (screen: string) => void
       }
     }
     fetchData();
+
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        const addr = await locationService.getAddress(pos.coords.latitude, pos.coords.longitude);
+        setAddress(addr);
+      });
+    }
   }, []);
 
   const dangerCount = stats?.expired_documents || 0;
@@ -125,7 +134,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (screen: string) => void
               <h2 className="text-white text-lg leading-tight font-bold">{user?.name || "Driver"}</h2>
               <div className="flex items-center gap-1 mt-0.5">
                 <MapPin size={10} className="text-orange-300" />
-                <span className="text-orange-300 text-xs">NH-44, Maharashtra</span>
+                <span className="text-orange-300 text-xs">{address}</span>
               </div>
             </div>
           </div>
@@ -331,7 +340,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (screen: string) => void
               <h3 className="text-gray-800 text-lg font-bold">{t.emergencySOS}</h3>
               <button onClick={() => setSosActive(false)}><X size={22} className="text-gray-400" /></button>
             </div>
-            <p className="text-gray-500 text-sm mb-4">Current Location: NH-4, 15km from Pune</p>
+            <p className="text-gray-500 text-sm mb-4">Current Location: {address}</p>
             <div className="space-y-3">
               <a href="tel:108" className="w-full bg-gradient-to-r from-red-600 to-red-500 text-white rounded-2xl py-4 flex items-center justify-center gap-3 font-bold">
                 <Phone size={22} /> Call Ambulance (108)

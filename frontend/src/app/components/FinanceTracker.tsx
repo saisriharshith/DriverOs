@@ -95,6 +95,7 @@ export function FinanceTracker() {
     insurance:   { label: t.catInsurance,   icon: CATEGORY_ICONS.insurance,   ...CATEGORY_STYLE.insurance },
     loading:     { label: t.catLoading,     icon: CATEGORY_ICONS.loading,     ...CATEGORY_STYLE.loading },
     LOADING:     { label: t.catLoading,     icon: CATEGORY_ICONS.LOADING,     ...CATEGORY_STYLE.LOADING },
+    FREIGHT:     { label: "Freight",        icon: <TrendingUp size={16} />,   color: "#16a34a", bg: "#f0fdf4" },
     other:       { label: t.catOther,       icon: CATEGORY_ICONS.other,       ...CATEGORY_STYLE.other },
     OTHER:       { label: t.catOther,       icon: CATEGORY_ICONS.OTHER,       ...CATEGORY_STYLE.OTHER },
     PARKING:     { label: "Parking",        icon: CATEGORY_ICONS.PARKING,     ...CATEGORY_STYLE.PARKING },
@@ -266,7 +267,7 @@ export function FinanceTracker() {
   const PIE_COLORS = ["#f07c1e", "#16a34a", "#9333ea", "#dc2626", "#0ea5e9", "#d97706", "#64748b"];
 
   const EXPENSE_CATEGORIES = ["FUEL", "TOLL", "PARKING", "REPAIR", "OTHER"];
-  const INCOME_CATEGORIES = ["LOADING", "OTHER"];
+  const INCOME_CATEGORIES = ["FREIGHT", "LOADING", "OTHER"];
 
   return (
     <div className="min-h-screen bg-[#f0f4f8] pb-28">

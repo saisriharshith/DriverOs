@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Mic, MicOff, Check, X, Fuel, Plus, Pencil } from "lucide-react";
+import { Mic, MicOff, Check, X, Fuel, Plus, Pencil, Camera } from "lucide-react";
 import { useLang } from "../LanguageContext";
+import { aiService } from "../api/ai.service";
 
 interface FuelEntry {
   id: string;
@@ -75,6 +76,7 @@ export function FuelExpenseVoice({ isOpen, onClose }: Props) {
   const { lang, t } = useLang();
   const [mode, setMode] = useState<"voice" | "manual">("voice");
   const [listening, setListening] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [parsed, setParsed] = useState<Partial<FuelEntry> | null>(null);
   const [entries, setEntries] = useState<FuelEntry[]>(INITIAL_ENTRIES);
@@ -85,6 +87,31 @@ export function FuelExpenseVoice({ isOpen, onClose }: Props) {
   const [form, setForm] = useState({ litres: "", totalCost: "", pricePerLitre: "", fuelType: "Diesel", station: "", odometer: "" });
 
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+
+  async function handlePhotoOCR(file: File) {
+    setAnalyzing(true);
+    setTranscript("Analyzing receipt photo...");
+    try {
+      const result = await aiService.analyzeReceipt(file);
+      if (result.ocr_result) {
+        const o = result.ocr_result;
+        setParsed({
+          litres: o.litres || 0,
+          totalCost: o.amount || 0,
+          pricePerLitre: o.price_per_litre || 0,
+          fuelType: o.fuel_type || "Diesel",
+          station: o.fuel_station || "OCR Station",
+          date: o.date || new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
+        });
+        setTranscript("Receipt analyzed successfully!");
+      }
+    } catch (err) {
+      console.error("OCR analysis failed", err);
+      setTranscript("Failed to analyze receipt.");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
 
   useEffect(() => {
     if (!isOpen) {
@@ -240,35 +267,50 @@ export function FuelExpenseVoice({ isOpen, onClose }: Props) {
                   {FUEL_PROMPTS[lang] || FUEL_PROMPTS.en}
                 </p>
 
-                {/* Mic button */}
+                {/* Mic & Photo buttons */}
                 <div className="flex flex-col items-center mb-6">
-                  <div className="relative">
-                    {/* Wave rings */}
-                    {waveActive && [1, 2, 3].map(i => (
-                      <motion.div
-                        key={i}
-                        className="absolute inset-0 rounded-full border-2 border-[#1a4999]/30"
-                        initial={{ scale: 1, opacity: 0.6 }}
-                        animate={{ scale: 1 + i * 0.35, opacity: 0 }}
-                        transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.3, ease: "easeOut" }}
-                      />
-                    ))}
-                    <button
-                      onClick={listening ? stopListening : startListening}
-                      className={`relative w-24 h-24 rounded-full flex items-center justify-center shadow-xl transition-all ${
-                        listening
-                          ? "bg-red-500 scale-110"
-                          : "bg-[#1a4999] hover:bg-[#163d80]"
-                      }`}
-                    >
-                      {listening
-                        ? <MicOff size={36} className="text-white" />
-                        : <Mic size={36} className="text-white" />
-                      }
-                    </button>
+                  <div className="flex items-center gap-6">
+                    <div className="relative">
+                      {/* Wave rings */}
+                      {waveActive && [1, 2, 3].map(i => (
+                        <motion.div
+                          key={i}
+                          className="absolute inset-0 rounded-full border-2 border-[#1a4999]/30"
+                          initial={{ scale: 1, opacity: 0.6 }}
+                          animate={{ scale: 1 + i * 0.35, opacity: 0 }}
+                          transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.3, ease: "easeOut" }}
+                        />
+                      ))}
+                      <button
+                        onClick={listening ? stopListening : startListening}
+                        className={`relative w-24 h-24 rounded-full flex items-center justify-center shadow-xl transition-all ${
+                          listening
+                            ? "bg-red-500 scale-110"
+                            : "bg-[#1a4999] hover:bg-[#163d80]"
+                        }`}
+                      >
+                        {listening
+                          ? <MicOff size={36} className="text-white" />
+                          : <Mic size={36} className="text-white" />
+                        }
+                      </button>
+                    </div>
+                    
+                    <label className={`w-20 h-20 rounded-full flex flex-col items-center justify-center shadow-lg transition-all cursor-pointer ${analyzing ? "bg-gray-100" : "bg-orange-500 hover:bg-orange-600"}`}>
+                      {analyzing ? (
+                        <div className="w-8 h-8 border-3 border-[#1a4999] border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <Camera size={28} className="text-white" />
+                          <span className="text-[10px] text-white font-bold mt-1">PHOTO</span>
+                          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => e.target.files?.[0] && handlePhotoOCR(e.target.files[0])} />
+                        </>
+                      )}
+                    </label>
                   </div>
+                  
                   <p className="mt-4 text-sm text-center" style={{ fontWeight: 600, color: listening ? "#ef4444" : "#1a4999" }}>
-                    {listening ? t.listening : t.tapToSpeak}
+                    {listening ? t.listening : analyzing ? "AI analyzing photo..." : "Tap Mic to Speak or Camera for Photo"}
                   </p>
                 </div>
 

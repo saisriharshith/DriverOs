@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Fuel, Coffee, Wrench, ParkingCircle, Phone, Star, Clock, MapPin, Navigation, Mic, Plus } from "lucide-react";
 import { useLang } from "../LanguageContext";
 import { FuelExpenseVoice } from "./FuelExpenseVoice";
+import { locationService } from "../api/location.service";
 
 type Category = "fuel" | "dhaba" | "mechanic" | "parking";
 
@@ -21,8 +22,24 @@ const PLACES = [
 export function FuelRest() {
   const { t } = useLang();
   const [activeCategory, setActiveCategory] = useState<Category>("fuel");
-  const [showVoice, setShowVoice] = useState(false);
+  const [coords, setCoords] = useState<{lat: number, lng: number} | null>(null);
+  const [address, setAddress] = useState<string>("");
   const filtered = PLACES.filter(p => p.category === activeCategory);
+
+  useEffect(() => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords;
+          setCoords({ lat: latitude, lng: longitude });
+          const addr = await locationService.getAddress(latitude, longitude);
+          setAddress(addr);
+        },
+        () => {},
+        { enableHighAccuracy: true }
+      );
+    }
+  }, []);
 
   const CATEGORIES = [
     { key: "fuel" as Category, label: t.fuelStations, icon: Fuel, color: "text-orange-500", activeBg: "bg-orange-500" },
@@ -33,26 +50,18 @@ export function FuelRest() {
 
   return (
     <div className="min-h-screen bg-[#f0f4f8] pb-24">
-      <FuelExpenseVoice isOpen={showVoice} onClose={() => setShowVoice(false)} />
-
       <div className="bg-[#1a4999] px-4 pt-10 pb-5">
         <div className="flex items-start justify-between mb-2">
           <div>
-            <h1 className="text-white text-xl font-semibold">{t.fuelRest}</h1>
+            <h1 className="text-white text-xl font-semibold">Nearby Places</h1>
             <p className="text-white/60 text-sm mt-0.5">{t.nearbyFacilities}</p>
           </div>
-          {/* Voice Fuel Expense Button */}
-          <button
-            onClick={() => setShowVoice(true)}
-            className="flex items-center gap-2 bg-[#f07c1e] hover:bg-[#d96b15] text-white px-4 py-2.5 rounded-xl shadow-lg transition-colors"
-          >
-            <Mic size={16} />
-            <span className="text-sm" style={{ fontWeight: 700 }}>Add Fuel</span>
-          </button>
         </div>
         <div className="flex items-center gap-2 mt-3 bg-white/10 rounded-xl px-3 py-2">
           <MapPin size={14} className="text-orange-300" />
-          <span className="text-white/80 text-sm">NH-44, near Butibori, Nagpur</span>
+          <span className="text-white/80 text-sm">
+            {address || (coords ? `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}` : "Searching for location...")}
+          </span>
           <span className="text-white/40 text-xs ml-auto">Live</span>
         </div>
       </div>
@@ -115,17 +124,6 @@ export function FuelRest() {
           <p className="text-red-700 text-xs">For breakdowns: Call highway helpline <span className="font-bold">1033</span> (NHAI 24/7)</p>
         </div>
       </div>
-
-      {/* Floating fuel expense button */}
-      <button
-        onClick={() => setShowVoice(true)}
-        className="fixed bottom-24 right-4 z-30 flex items-center gap-2 bg-[#1a4999] text-white px-5 py-3.5 rounded-2xl shadow-xl lg:bottom-6"
-        style={{ fontWeight: 700 }}
-      >
-        <Mic size={18} />
-        <Plus size={14} />
-        <span className="text-sm">Fuel Expense</span>
-      </button>
     </div>
   );
 }

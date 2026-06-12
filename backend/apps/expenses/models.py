@@ -8,7 +8,8 @@ class Expense(models.Model):
         ('FUEL', 'Fuel'), ('TOLL', 'Toll'), ('REPAIR', 'Repair/Maintenance'),
         ('TYRE', 'Tyres'), ('OIL', 'Engine Oil'), ('SERVICE', 'Scheduled Service'),
         ('LOADING', 'Loading/Unloading'), ('PARKING', 'Parking'), ('FOOD', 'Food/Dhaba'),
-        ('FINES', 'Fines/Challan'), ('INSURANCE', 'Insurance Premium'), ('OTHER', 'Other'),
+        ('FINES', 'Fines/Challan'), ('INSURANCE', 'Insurance Premium'), ('FREIGHT', 'Freight'),
+        ('OTHER', 'Other'),
     ]
     ENTRY_TYPES = [('EXPENSE', 'Expense'), ('INCOME', 'Income')]
     

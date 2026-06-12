@@ -36,7 +36,7 @@ export function VehicleManagement() {
   const [loading, setLoading] = useState(true);
   const [vehicleForm, setVehicleForm] = useState({
     vehicle_number: "",
-    vehicle_type: "Truck",
+    vehicle_type: "TRUCK",
     insurance_expiry: "",
     permit_expiry: "",
     puc_expiry: "",
@@ -70,7 +70,7 @@ export function VehicleManagement() {
       await fetchVehicles();
       setVehicleForm({
         vehicle_number: "",
-        vehicle_type: "Truck",
+        vehicle_type: "TRUCK",
         insurance_expiry: "",
         permit_expiry: "",
         puc_expiry: "",
@@ -316,9 +316,34 @@ export function VehicleManagement() {
               <button onClick={() => setShowAddVehicle(false)}><X size={22} className="text-[#4a5f7a]" /></button>
             </div>
             <div className="flex flex-col gap-3 mb-4">
+              <div className="bg-[#f0f4f8] rounded-xl px-4 py-3">
+                <p className="text-[#4a5f7a] text-xs mb-1">Vehicle Number</p>
+                <input
+                  className="w-full bg-transparent text-[#0f1c35] text-sm outline-none"
+                  placeholder="e.g. TS09EA1234"
+                  type="text"
+                  value={vehicleForm.vehicle_number}
+                  onChange={e => setVehicleForm(prev => ({ ...prev, vehicle_number: e.target.value }))}
+                />
+              </div>
+
+              <div className="bg-[#f0f4f8] rounded-xl px-4 py-3">
+                <p className="text-[#4a5f7a] text-xs mb-1">Vehicle Type</p>
+                <select
+                  className="w-full bg-transparent text-[#0f1c35] text-sm outline-none"
+                  value={vehicleForm.vehicle_type}
+                  onChange={e => setVehicleForm(prev => ({ ...prev, vehicle_type: e.target.value }))}
+                >
+                  <option value="TRUCK">Truck (10-16T)</option>
+                  <option value="HEAVY_TRUCK">Heavy Truck (16-25T)</option>
+                  <option value="TRAILER">Trailer (25T+)</option>
+                  <option value="LCV">LCV (3.5-7.5T)</option>
+                  <option value="TAXI">Taxi/Car</option>
+                  <option value="AUTO">Auto Rickshaw</option>
+                </select>
+              </div>
+
               {[
-                { key: "vehicle_number", label: "Vehicle Number", type: "text" },
-                { key: "vehicle_type", label: "Vehicle Type", type: "text" },
                 { key: "insurance_expiry", label: "Insurance Expiry", type: "date" },
                 { key: "permit_expiry", label: "Permit Expiry", type: "date" },
                 { key: "puc_expiry", label: "PUC Expiry", type: "date" },
