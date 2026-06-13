@@ -10,7 +10,7 @@ import { useLang } from "../LanguageContext";
 import { LANGUAGE_OPTIONS, LangCode } from "../translations";
 import { analyticsService } from "../api/analytics.service";
 import { authService } from "../api/auth.service";
-import { locationService } from "../api/location.service";
+import { locationService, getMapsSearchUrl } from "../api/location.service";
 
 interface DashboardStats {
   total_expenses: number;
@@ -53,7 +53,9 @@ export function Dashboard({ onNavigate }: { onNavigate: (screen: string) => void
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [address, setAddress] = useState<string>("Searching...");
+  const [address, setAddress] = useState<string>("Detecting location...");
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationSource, setLocationSource] = useState<'gps' | 'ip' | 'none'>('none');
 
   useEffect(() => {
     async function fetchData() {
@@ -72,12 +74,12 @@ export function Dashboard({ onNavigate }: { onNavigate: (screen: string) => void
     }
     fetchData();
 
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        const addr = await locationService.getAddress(pos.coords.latitude, pos.coords.longitude);
-        setAddress(addr);
-      });
-    }
+    // Use the centralized location service — GPS first, IP fallback
+    locationService.getAddressFromBrowser().then(({ address: addr, lat, lng, source }) => {
+      setAddress(addr || 'Location unavailable');
+      setLocationSource(source);
+      if (lat !== 0) setCoords({ lat, lng });
+    });
   }, []);
 
   const dangerCount = stats?.expired_documents || 0;
@@ -134,7 +136,24 @@ export function Dashboard({ onNavigate }: { onNavigate: (screen: string) => void
               <h2 className="text-white text-lg leading-tight font-bold">{user?.name || "Driver"}</h2>
               <div className="flex items-center gap-1 mt-0.5">
                 <MapPin size={10} className="text-orange-300" />
-                <span className="text-orange-300 text-xs">{address}</span>
+                {coords ? (
+                  <a
+                    href={getMapsSearchUrl(coords.lat, coords.lng, 'nearby')}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-orange-300 text-xs underline underline-offset-2"
+                  >
+                    {address}
+                  </a>
+                ) : (
+                  <span className="text-orange-300 text-xs">{address}</span>
+                )}
+                {locationSource === 'ip' && (
+                  <span className="text-orange-200 text-[9px] ml-1 opacity-70">(approx)</span>
+                )}
+                {locationSource === 'gps' && (
+                  <span className="text-green-300 text-[9px] ml-1">● GPS</span>
+                )}
               </div>
             </div>
           </div>

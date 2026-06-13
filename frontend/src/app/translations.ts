@@ -241,6 +241,7 @@ export interface Translation {
   typeIncome: string;
   categoryLabel: string;
   noteParsed: string;
+  startTimeLabel: string;
 }
 
 const translations: Record<LangCode, Translation> = {
@@ -458,6 +459,7 @@ const translations: Record<LangCode, Translation> = {
     typeIncome: "Income",
     categoryLabel: "Category",
     noteParsed: "Note",
+    startTimeLabel: "Start Date & Time",
   },
 
   hi: {
@@ -674,6 +676,7 @@ const translations: Record<LangCode, Translation> = {
     typeIncome: "आय",
     categoryLabel: "श्रेणी",
     noteParsed: "नोट",
+    startTimeLabel: "शुरू करने का समय",
   },
 
   te: {
@@ -890,7 +893,7 @@ const translations: Record<LangCode, Translation> = {
     typeIncome: "ఆదాయం",
     categoryLabel: "వర్గం",
     noteParsed: "నోట్",
-    
+    startTimeLabel: "ప్రారంభ సమయం",
   },
 
   ta: {
@@ -1107,6 +1110,7 @@ const translations: Record<LangCode, Translation> = {
     typeIncome: "வருவாய்",
     categoryLabel: "வகை",
     noteParsed: "குறிப்பு",
+    startTimeLabel: "தொடக்க நேரம்",
   },
 
   kn: {
@@ -1323,6 +1327,7 @@ const translations: Record<LangCode, Translation> = {
     typeIncome: "ಆದಾಯ",
     categoryLabel: "ವರ್ಗ",
     noteParsed: "ಟಿಪ್ಪಣಿ",
+    startTimeLabel: "ಪ್ರಾರಂಭದ ಸಮಯ",
   },
 
   mr: {
@@ -1539,6 +1544,7 @@ const translations: Record<LangCode, Translation> = {
     typeIncome: "उत्पन्न",
     categoryLabel: "श्रेणी",
     noteParsed: "नोट",
+    startTimeLabel: "सुरू करण्याची वेळ",
   },
 
   bn: {
@@ -1755,6 +1761,7 @@ const translations: Record<LangCode, Translation> = {
     typeIncome: "আয়",
     categoryLabel: "বিভাগ",
     noteParsed: "নোট",
+    startTimeLabel: "শুরু করার সময়",
   },
   ml: {
     langName: "Malayalam",
@@ -1970,6 +1977,7 @@ const translations: Record<LangCode, Translation> = {
     typeIncome: "വരുമാനം",
     categoryLabel: "വിഭാഗം",
     noteParsed: "കുറിപ്പ്",
+    startTimeLabel: "ആരംഭ സമയം",
   },
 };
 

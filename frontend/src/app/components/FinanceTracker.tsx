@@ -138,6 +138,7 @@ export function FinanceTracker() {
         amount: parseFloat(e.amount),
         note: e.description || e.category,
         date: e.expense_date,
+        trip: e.trip_detail,
       }));
       setEntries(mapped);
     } catch (err) {

@@ -8,21 +8,20 @@ class GeminiOCRService:
     """Gemini Vision API integration for OCR"""
     
     def __init__(self):
-        self._model = None
+        self._client = None
         api_key = os.environ.get('GEMINI_API_KEY') or getattr(settings, 'GEMINI_API_KEY', None)
         if api_key:
             try:
-                import google.generativeai as genai
-                genai.configure(api_key=api_key)
-                self._model = genai.GenerativeModel('gemini-1.5-flash')
+                from google import genai
+                self._client = genai.Client(api_key=api_key)
             except ImportError:
-                self._model = None
+                self._client = None
         else:
-            self._model = None
+            self._client = None
 
     @property
-    def model(self):
-        return self._model
+    def client(self):
+        return self._client
     
     def _encode_image(self, image_file):
         """Encode image to base64"""
@@ -31,7 +30,7 @@ class GeminiOCRService:
     
     def process_receipt(self, image_file) -> dict:
         """Process fuel receipt and extract expense data"""
-        if not self._model:
+        if not self._client:
             return self._mock_receipt_response()
         
         try:
@@ -57,10 +56,22 @@ class GeminiOCRService:
             If any field is not found, use null.
             """
             
-            response = self._model.generate_content([
-                prompt,
-                {"mime_type": "image/jpeg", "data": image_data}
-            ])
+            from google.genai import types
+            
+            response = self._client.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=[
+                    types.Content(
+                        parts=[
+                            types.Part.from_text(text=prompt),
+                            types.Part.from_bytes(
+                                data=base64.b64decode(image_data),
+                                mime_type="image/jpeg",
+                            ),
+                        ]
+                    )
+                ],
+            )
             
             # Parse JSON from response
             text = response.text.strip()
@@ -81,7 +92,7 @@ class GeminiOCRService:
     
     def process_document(self, image_file, doc_type: str) -> dict:
         """Process vehicle document (RC, Insurance, Permit, PUC, Fitness)"""
-        if not self._model:
+        if not self._client:
             return self._mock_document_response(doc_type)
         
         try:
@@ -154,10 +165,22 @@ class GeminiOCRService:
             
             prompt = prompts.get(doc_type, prompts['RC'])
             
-            response = self._model.generate_content([
-                prompt,
-                {"mime_type": "image/jpeg", "data": image_data}
-            ])
+            from google.genai import types
+            
+            response = self._client.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=[
+                    types.Content(
+                        parts=[
+                            types.Part.from_text(text=prompt),
+                            types.Part.from_bytes(
+                                data=base64.b64decode(image_data),
+                                mime_type="image/jpeg",
+                            ),
+                        ]
+                    )
+                ],
+            )
             
             text = response.text.strip()
             if text.startswith('```json'):

@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Sum
 from django.utils import timezone
+from decimal import Decimal
 from .models import Trip
 from .serializers import TripSerializer
 from vehicles.models import Vehicle
@@ -26,9 +27,12 @@ class TripViewSet(viewsets.ModelViewSet):
         vehicle_id = serializer.validated_data.get('vehicle')
         if vehicle_id:
             vehicle = Vehicle.objects.get(id=vehicle_id.id)
-            serializer.save(driver=self.request.user, start_odometer=vehicle.current_odometer)
+            trip = serializer.save(driver=self.request.user, start_odometer=vehicle.current_odometer)
         else:
-            serializer.save(driver=self.request.user)
+            trip = serializer.save(driver=self.request.user)
+
+        # Auto-add freight and advance to finance tracker
+        self._create_trip_finance_entries(trip, self.request.user)
 
     @action(detail=False, methods=['get'], url_path='active')
     def active_trip(self, request):
@@ -90,6 +94,41 @@ class TripViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(trip)
         return Response(serializer.data)
 
+    @staticmethod
+    def _create_trip_finance_entries(trip, user):
+        """Auto-create finance entries when a trip starts.
+        - Freight amount → INCOME / FREIGHT
+        - Advance amount → INCOME / FREIGHT (noted as advance)
+        """
+        today = trip.start_time.date() if trip.start_time else timezone.now().date()
+        trip_label = f"{trip.start_location} → {trip.end_location}"
+
+        # Freight (total cost) as income
+        if trip.freight_amount and Decimal(str(trip.freight_amount)) > 0:
+            Expense.objects.create(
+                user=user,
+                vehicle=trip.vehicle,
+                trip=trip,
+                category='FREIGHT',
+                entry_type='INCOME',
+                amount=trip.freight_amount,
+                expense_date=today,
+                description=f"Freight for trip: {trip_label}",
+            )
+
+        # Advance as income
+        if trip.advance_amount and Decimal(str(trip.advance_amount)) > 0:
+            Expense.objects.create(
+                user=user,
+                vehicle=trip.vehicle,
+                trip=trip,
+                category='FREIGHT',
+                entry_type='INCOME',
+                amount=trip.advance_amount,
+                expense_date=today,
+                description=f"Advance for trip: {trip_label}",
+            )
+
 
 class VehicleTripViewSet(viewsets.ModelViewSet):
     """Vehicle-scoped trips"""
@@ -109,7 +148,10 @@ class VehicleTripViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         vehicle_id = self.kwargs.get('vehicle_pk')
         vehicle = Vehicle.objects.get(id=vehicle_id, user=self.request.user)
-        serializer.save(vehicle=vehicle, driver=self.request.user, start_odometer=vehicle.current_odometer)
+        trip = serializer.save(vehicle=vehicle, driver=self.request.user, start_odometer=vehicle.current_odometer)
+
+        # Auto-add freight and advance to finance tracker
+        TripViewSet._create_trip_finance_entries(trip, self.request.user)
 
     @action(detail=True, methods=['post'], url_path='complete')
     def complete_trip(self, request, pk=None, vehicle_pk=None):

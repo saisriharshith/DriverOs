@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 from vehicles.models import Vehicle
 
 class Trip(models.Model):
@@ -31,7 +32,7 @@ class Trip(models.Model):
     balance_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     
     status = models.CharField(max_length=10, choices=STATUS, default='ACTIVE')
-    start_time = models.DateTimeField(auto_now_add=True)
+    start_time = models.DateTimeField(default=timezone.now)
     end_time = models.DateTimeField(null=True, blank=True)
     
     start_odometer = models.IntegerField(default=0)
@@ -42,6 +43,11 @@ class Trip(models.Model):
     total_other_expenses = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     net_profit = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     mileage_achieved = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.freight_amount is not None and self.advance_amount is not None:
+            self.balance_amount = self.freight_amount - self.advance_amount
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Trip {self.id}: {self.start_location} -> {self.end_location}"

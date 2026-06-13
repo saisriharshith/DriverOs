@@ -37,7 +37,7 @@ const QUICK_QUESTIONS = [
 ];
 
 export function AIAssistant() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "init",

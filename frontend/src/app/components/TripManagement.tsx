@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Navigation, MapPin, Fuel, IndianRupee, ChevronRight, X, Play, Square, Clock, TrendingUp, CircleGauge } from "lucide-react";
+import { Navigation, MapPin, Fuel, IndianRupee, ChevronRight, X, Play, Square, Clock, TrendingUp, CircleGauge, Truck } from "lucide-react";
 import { useLang } from "../LanguageContext";
 import { tripService } from "../api/trip.service";
 import { vehicleService } from "../api/vehicle.service";
@@ -26,6 +26,12 @@ interface Trip {
 
 const fmtINR = (n: number) => "₹" + n.toLocaleString("en-IN");
 
+const getLocalISOString = () => {
+  const tzoffset = (new Date()).getTimezoneOffset() * 60000;
+  const localISOTime = (new Date(Date.now() - tzoffset)).toISOString().slice(0, 16);
+  return localISOTime;
+};
+
 function StatBox({ label, value, color }: { label: string; value: string; color: string }) {
   return (
     <div className="stat-card text-center">
@@ -45,6 +51,7 @@ export function TripManagement() {
   const [to, setTo] = useState("");
   const [freightAmount, setFreightAmount] = useState("");
   const [advanceAmount, setAdvanceAmount] = useState("");
+  const [startTime, setStartTime] = useState(getLocalISOString());
   const [vehicleId, setVehicleId] = useState<number | null>(null);
   const [endTripOdometer, setEndTripOdometer] = useState("");
   const [showEndTrip, setShowEndTrip] = useState(false);
@@ -87,11 +94,13 @@ export function TripManagement() {
         end_location: to,
         freight_amount: freightAmount || 0,
         advance_amount: advanceAmount || 0,
+        start_time: startTime ? new Date(startTime).toISOString() : undefined,
         status: "ACTIVE"
       });
       await fetchTrips();
       setShowNewTrip(false);
       setFrom(""); setTo(""); setFreightAmount(""); setAdvanceAmount("");
+      setStartTime(getLocalISOString());
     } catch (err) {
       console.error("Failed to start trip", err);
     } finally {
@@ -171,7 +180,7 @@ export function TripManagement() {
 
       {!active && (
         <div className="px-4 mt-4">
-          <button onClick={() => setShowNewTrip(true)}
+          <button onClick={() => { setStartTime(getLocalISOString()); setShowNewTrip(true); }}
             className="w-full text-white rounded-2xl py-4 flex items-center justify-center gap-2 font-bold shadow-md"
             style={{ background: "linear-gradient(135deg, #1a4999, #2563eb)" }}>
             <Play size={20} />{t.startNewTrip}
@@ -313,6 +322,14 @@ export function TripManagement() {
                 <MapPin size={18} className="text-red-500" />
                 <input className="flex-1 bg-transparent text-gray-800 outline-none text-sm font-medium"
                   placeholder={t.to} value={to} onChange={e => setTo(e.target.value)} />
+              </div>
+              <div className="bg-gray-50 rounded-xl px-4 py-3 flex flex-col gap-1">
+                <label className="text-[10px] text-gray-400 font-bold uppercase">{t.startTimeLabel}</label>
+                <div className="flex items-center gap-3">
+                  <Clock size={18} className="text-primary animate-pulse" />
+                  <input type="datetime-local" className="flex-1 bg-transparent text-gray-800 outline-none text-sm font-medium"
+                    value={startTime} onChange={e => setStartTime(e.target.value)} />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-center gap-3">

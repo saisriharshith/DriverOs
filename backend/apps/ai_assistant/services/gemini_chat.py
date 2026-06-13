@@ -1,26 +1,26 @@
 import os
 from django.conf import settings
 
+
 class GeminiChatService:
     def __init__(self):
-        self._model = None
+        self._client = None
         api_key = os.environ.get('GEMINI_API_KEY') or getattr(settings, 'GEMINI_API_KEY', None)
         if api_key:
             try:
-                import google.generativeai as genai
-                genai.configure(api_key=api_key)
-                self._model = genai.GenerativeModel('gemini-1.5-flash')
+                from google import genai
+                self._client = genai.Client(api_key=api_key)
             except ImportError:
-                self._model = None
+                self._client = None
         else:
-            self._model = None
+            self._client = None
 
     @property
-    def model(self):
-        return self._model
+    def client(self):
+        return self._client
 
     def get_response(self, message, context=None):
-        if not self._model:
+        if not self._client:
             return "I'm currently in offline mode. I can help with document renewals, fines, PUC, insurance, license, fitness certificate, E-Way Bill, trips, and emergency guidance."
 
         try:
@@ -41,7 +41,10 @@ class GeminiChatService:
             Keep it practical and specific to the Indian context.
             """
             
-            response = self.model.generate_content(prompt)
+            response = self._client.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=prompt,
+            )
             return response.text.strip()
         except Exception as e:
             return f"Error: {str(e)}"
